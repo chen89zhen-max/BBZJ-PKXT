@@ -1,9 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, Component, ErrorInfo, ReactNode } from 'react';
 import { AppProvider, useAppContext } from './context';
 import { MatrixSchedule } from './components/MatrixSchedule';
 import { TeacherWorkload } from './components/TeacherWorkload';
 import { Settings } from './components/Settings';
-import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff } from 'lucide-react';
+import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("React Error Boundary caught an error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+          <div className="bg-white p-8 rounded-xl shadow-lg max-w-2xl w-full border border-red-100">
+            <div className="flex items-center gap-3 text-red-600 mb-4">
+              <AlertTriangle className="w-8 h-8" />
+              <h1 className="text-2xl font-bold">应用程序发生错误</h1>
+            </div>
+            <div className="bg-red-50 p-4 rounded-lg overflow-auto max-h-96">
+              <pre className="text-sm text-red-800 whitespace-pre-wrap">
+                {this.state.error?.toString()}
+                {'\n\n'}
+                {this.state.error?.stack}
+              </pre>
+            </div>
+            <button 
+              onClick={() => window.location.reload()}
+              className="mt-6 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              刷新页面
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function MainContent() {
   const { state, connected } = useAppContext();
@@ -112,9 +166,11 @@ function MainContent() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <MainContent />
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <MainContent />
+      </AppProvider>
+    </ErrorBoundary>
   );
 }
 

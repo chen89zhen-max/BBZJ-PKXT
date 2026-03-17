@@ -121,6 +121,7 @@ async function startServer() {
     cors: {
       origin: '*',
     },
+    destroyUpgrade: false,
   });
 
   const PORT = 3000;
@@ -153,9 +154,30 @@ async function startServer() {
     res.json(state);
   });
 
+  // Force development mode for Vite to serve source files correctly
+  process.env.NODE_ENV = 'development';
+
+  // Prevent caching of index.html to avoid blank screens after updates
+  app.use((req, res, next) => {
+    if (req.url === '/' || req.url === '/index.html') {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+    next();
+  });
+
   // Vite middleware for both dev and prod when running via tsx
   const vite = await createViteServer({
-    server: { middlewareMode: true },
+    root: process.cwd(),
+    mode: 'development',
+    server: { 
+      middlewareMode: true,
+      host: '0.0.0.0',
+      hmr: {
+        server: httpServer
+      }
+    },
     appType: 'spa',
   });
   app.use(vite.middlewares);
