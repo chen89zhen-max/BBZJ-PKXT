@@ -52,8 +52,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   useEffect(() => {
-    // Connect to the same host/port
-    const newSocket = io();
+    // Connect to the same host/port, forcing polling first to avoid WebSocket connection issues in some proxy environments
+    const newSocket = io({
+      path: '/socket.io/',
+      transports: ['polling', 'websocket'],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
     setSocket(newSocket);
 
     newSocket.on('connect', () => {

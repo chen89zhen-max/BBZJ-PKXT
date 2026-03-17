@@ -118,9 +118,13 @@ async function startServer() {
   const app = express();
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
+    path: '/socket.io/',
     cors: {
       origin: '*',
+      methods: ["GET", "POST"]
     },
+    transports: ['polling', 'websocket'],
+    allowEIO3: true,
     destroyUpgrade: false,
   });
 
@@ -167,18 +171,25 @@ async function startServer() {
     next();
   });
 
-  // Vite middleware for both dev and prod when running via tsx
-  const vite = await createViteServer({
-    root: process.cwd(),
-    mode: 'development',
-    server: { 
-      middlewareMode: true,
-      host: '0.0.0.0',
-      hmr: false // Completely disable HMR to prevent WebSocket errors on NAS
-    },
-    appType: 'spa',
-  });
-  app.use(vite.middlewares);
+    // Vite middleware for both dev and prod when running via tsx
+    const vite = await createViteServer({
+      root: process.cwd(),
+      mode: 'development',
+      server: { 
+        middlewareMode: true,
+        host: '0.0.0.0',
+        hmr: {
+          protocol: 'ws',
+          host: 'localhost',
+          port: 24678,
+        },
+        watch: {
+          usePolling: false,
+        }
+      },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
