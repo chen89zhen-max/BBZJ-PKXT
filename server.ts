@@ -158,9 +158,6 @@ async function startServer() {
     res.json(state);
   });
 
-  // Force development mode for Vite to serve source files correctly
-  process.env.NODE_ENV = 'development';
-
   // Prevent caching of index.html to avoid blank screens after updates
   app.use((req, res, next) => {
     if (req.url === '/' || req.url === '/index.html') {
@@ -171,25 +168,21 @@ async function startServer() {
     next();
   });
 
-    // Vite middleware for both dev and prod when running via tsx
+  if (process.env.NODE_ENV !== 'production') {
+    // Vite middleware for development
     const vite = await createViteServer({
-      root: process.cwd(),
-      mode: 'development',
-      server: { 
-        middlewareMode: true,
-        host: '0.0.0.0',
-        hmr: {
-          protocol: 'ws',
-          host: 'localhost',
-          port: 24678,
-        },
-        watch: {
-          usePolling: false,
-        }
-      },
+      server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
+  } else {
+    // Serve static files in production
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
