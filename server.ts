@@ -179,9 +179,7 @@ async function startServer() {
       server: { 
         middlewareMode: true,
         host: '0.0.0.0',
-        hmr: {
-          server: httpServer
-        }
+        hmr: false // Completely disable HMR to prevent WebSocket errors on NAS
       },
       appType: 'spa',
     });
