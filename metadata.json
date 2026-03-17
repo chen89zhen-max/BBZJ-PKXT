@@ -1,0 +1,5 @@
+{
+  "name": "全校排课与工作量统计系统",
+  "description": "支持多个专业部同步排课，实时统计教师工作量的排课系统。",
+  "requestFramePermissions": []
+}
