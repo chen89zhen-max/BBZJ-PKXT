@@ -208,7 +208,7 @@ export function TeacherWorkload() {
                           {teacher.name} 
                           {teacher.gender && <span className="text-xs font-normal text-slate-500 ml-1">({teacher.gender})</span>}
                           {calculateAge(teacher.idCard) !== null && <span className="text-xs font-normal text-slate-500 ml-1">{calculateAge(teacher.idCard)}岁</span>}
-                          {teacher.employeeId && <span className="text-xs font-normal text-slate-400 ml-1">工号: {teacher.employeeId}</span>}
+                          {teacher.idCard && <span className="text-xs font-normal text-slate-400 ml-1">({teacher.idCard.length === 18 ? `${teacher.idCard.substring(0, 6)}****${teacher.idCard.substring(14)}` : teacher.idCard})</span>}
                         </span>
                         <div className="text-xs text-slate-500 mt-0.5 flex flex-col gap-0.5">
                           {teacher.department && <span>部门: {teacher.department}</span>}

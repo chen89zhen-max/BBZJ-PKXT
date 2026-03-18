@@ -17,7 +17,6 @@ export interface Grade {
 export interface Teacher {
   id: string;
   name: string;
-  employeeId?: string;
   department?: string;
   primarySubject?: string;
   gender?: '男' | '女';

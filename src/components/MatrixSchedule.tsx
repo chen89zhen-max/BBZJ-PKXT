@@ -157,7 +157,9 @@ export function MatrixSchedule({ department }: { department: Department }) {
                               >
                                 <option value=""></option>
                                 {state.teachers.map(t => (
-                                  <option key={t.id} value={t.id}>{t.name}</option>
+                                  <option key={t.id} value={t.id}>
+                                    {t.name} {t.idCard ? `(${t.idCard.length === 18 ? t.idCard.substring(14) : t.idCard})` : ''}
+                                  </option>
                                 ))}
                               </select>
                             </td>

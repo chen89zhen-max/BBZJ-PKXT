@@ -127,11 +127,52 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Teachers
   const addTeacher = (teacher: Omit<Teacher, 'id'>) => {
-    broadcastState({ ...state, teachers: [...state.teachers, { ...teacher, id: uuidv4() }] });
+    const existingIndex = state.teachers.findIndex(t => {
+      if (teacher.idCard && t.idCard) {
+        return t.idCard === teacher.idCard;
+      }
+      return t.name === teacher.name;
+    });
+
+    if (existingIndex >= 0) {
+      const updatedTeachers = [...state.teachers];
+      updatedTeachers[existingIndex] = {
+        ...updatedTeachers[existingIndex],
+        ...teacher,
+        id: updatedTeachers[existingIndex].id
+      };
+      broadcastState({ ...state, teachers: updatedTeachers });
+    } else {
+      broadcastState({ ...state, teachers: [...state.teachers, { ...teacher, id: uuidv4() }] });
+    }
   };
   const addTeachers = (newTeachers: Omit<Teacher, 'id'>[]) => {
-    const teachersToAdd = newTeachers.map(t => ({ ...t, id: uuidv4() }));
-    broadcastState({ ...state, teachers: [...state.teachers, ...teachersToAdd] });
+    let updatedTeachers = [...state.teachers];
+    
+    newTeachers.forEach(newT => {
+      // Find existing teacher by idCard (if provided) or by name
+      const existingIndex = updatedTeachers.findIndex(t => {
+        if (newT.idCard && t.idCard) {
+          return t.idCard === newT.idCard;
+        }
+        return t.name === newT.name;
+      });
+
+      if (existingIndex >= 0) {
+        // Update existing
+        updatedTeachers[existingIndex] = {
+          ...updatedTeachers[existingIndex],
+          ...newT,
+          // Preserve the original ID
+          id: updatedTeachers[existingIndex].id
+        };
+      } else {
+        // Add new
+        updatedTeachers.push({ ...newT, id: uuidv4() });
+      }
+    });
+
+    broadcastState({ ...state, teachers: updatedTeachers });
   };
   const deleteTeacher = (id: string) => {
     broadcastState({ ...state, teachers: state.teachers.filter(t => t.id !== id) });

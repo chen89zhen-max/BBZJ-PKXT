@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  teacher-workload-app:
+    build: .
+    container_name: teacher-workload-app
+    ports:
+      - "8080:3000"
+    restart: always
+    environment:
+      - TZ=Asia/Shanghai
+      - NODE_ENV=production

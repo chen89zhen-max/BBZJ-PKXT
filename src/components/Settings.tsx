@@ -27,7 +27,6 @@ export function Settings() {
   const [newTeacherName, setNewTeacherName] = useState('');
   const [newTeacherGender, setNewTeacherGender] = useState<'男' | '女' | ''>('');
   const [newTeacherIdCard, setNewTeacherIdCard] = useState('');
-  const [newTeacherEmployeeId, setNewTeacherEmployeeId] = useState('');
   const [newTeacherDepartment, setNewTeacherDepartment] = useState('');
   const [newTeacherPrimarySubject, setNewTeacherPrimarySubject] = useState('');
   
@@ -92,7 +91,6 @@ export function Settings() {
         name: row['姓名'] || row['name'] || '',
         gender: row['性别'] || row['gender'] || '',
         idCard: row['身份证号码'] || row['idCard'] || '',
-        employeeId: row['工号'] || row['employeeId'] || '',
         department: row['所属产业部'] || row['department'] || '',
         primarySubject: row['主要任教学科'] || row['primarySubject'] || ''
       })).filter(t => t.name);
@@ -110,7 +108,6 @@ export function Settings() {
       '姓名': '张三',
       '性别': '男',
       '身份证号码': '110105199001011234',
-      '工号': 'T001',
       '所属产业部': '信息技术部',
       '主要任教学科': '计算机基础'
     }]);
@@ -283,7 +280,7 @@ export function Settings() {
                             <label className="block text-xs text-slate-500 mb-1">班主任</label>
                             <select value={classForm.headTeacherId || ''} onChange={e => setClassForm({...classForm, headTeacherId: e.target.value})} className="w-full px-2 py-1 border rounded">
                               <option value="">无</option>
-                              {state.teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              {state.teachers.map(t => <option key={t.id} value={t.id}>{t.name} {t.idCard ? `(${t.idCard.length === 18 ? t.idCard.substring(14) : t.idCard})` : ''}</option>)}
                             </select>
                           </div>
                         </div>
@@ -344,14 +341,12 @@ export function Settings() {
                     name: newTeacherName.trim(),
                     gender: newTeacherGender as any,
                     idCard: newTeacherIdCard.trim(),
-                    employeeId: newTeacherEmployeeId.trim(),
                     department: newTeacherDepartment.trim(),
                     primarySubject: newTeacherPrimarySubject.trim()
                   }); 
                   setNewTeacherName(''); 
                   setNewTeacherGender('');
                   setNewTeacherIdCard('');
-                  setNewTeacherEmployeeId('');
                   setNewTeacherDepartment('');
                   setNewTeacherPrimarySubject('');
                 } 
@@ -364,9 +359,8 @@ export function Settings() {
                     <option value="女">女</option>
                   </select>
                   <input type="text" value={newTeacherIdCard} onChange={(e) => setNewTeacherIdCard(e.target.value)} placeholder="身份证号码" className="col-span-2 px-3 py-1.5 border border-slate-300 rounded-md text-sm" />
-                  <input type="text" value={newTeacherEmployeeId} onChange={(e) => setNewTeacherEmployeeId(e.target.value)} placeholder="工号" className="px-3 py-1.5 border border-slate-300 rounded-md text-sm" />
                   <input type="text" value={newTeacherDepartment} onChange={(e) => setNewTeacherDepartment(e.target.value)} placeholder="所属产业部" className="px-3 py-1.5 border border-slate-300 rounded-md text-sm" />
-                  <input type="text" value={newTeacherPrimarySubject} onChange={(e) => setNewTeacherPrimarySubject(e.target.value)} placeholder="主要任教学科" className="col-span-2 px-3 py-1.5 border border-slate-300 rounded-md text-sm" />
+                  <input type="text" value={newTeacherPrimarySubject} onChange={(e) => setNewTeacherPrimarySubject(e.target.value)} placeholder="主要任教学科" className="px-3 py-1.5 border border-slate-300 rounded-md text-sm" />
                 </div>
                 <button type="submit" disabled={!newTeacherName.trim()} className="w-full bg-emerald-600 text-white px-3 py-1.5 rounded-md hover:bg-emerald-700 disabled:opacity-50 text-sm flex items-center justify-center gap-1"><Plus className="w-4 h-4" /> 添加教师</button>
               </form>
@@ -376,7 +370,7 @@ export function Settings() {
                 {state.teachers.map(t => (
                   <div key={t.id} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm">
                     <div className="flex flex-col">
-                      <span className="font-medium">{t.name} {t.gender && `(${t.gender})`} {t.employeeId && <span className="text-xs text-slate-400 font-normal">工号: {t.employeeId}</span>}</span>
+                      <span className="font-medium">{t.name} {t.gender && `(${t.gender})`}</span>
                       <div className="text-xs text-slate-500 flex gap-2 mt-0.5">
                         {t.idCard && <span>身份证: {t.idCard}</span>}
                         {t.department && <span>产业部: {t.department}</span>}
