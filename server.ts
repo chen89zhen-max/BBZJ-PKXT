@@ -3,7 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import path from 'path';
-import { AppState } from './src/types.ts';
+import { AppState } from './src/types';
 
 // Initial State
 let state: AppState = {
