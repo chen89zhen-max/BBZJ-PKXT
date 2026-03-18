@@ -15,6 +15,10 @@ interface AppContextType {
   addMajor: (departmentId: string, name: string) => void;
   deleteMajor: (id: string) => void;
   
+  // Grades
+  addGrade: (name: string) => void;
+  deleteGrade: (id: string) => void;
+  
   // Classes
   addClass: (cls: Omit<Class, 'id'>) => void;
   updateClass: (cls: Class) => void;
@@ -114,6 +118,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     broadcastState({ ...state, majors: state.majors.filter(m => m.id !== id) });
   };
 
+  // Grades
+  const addGrade = (name: string) => {
+    broadcastState({ ...state, grades: [...state.grades, { id: uuidv4(), name }] });
+  };
+  const deleteGrade = (id: string) => {
+    broadcastState({ ...state, grades: state.grades.filter(g => g.id !== id) });
+  };
+
   // Classes
   const addClass = (cls: Omit<Class, 'id'>) => {
     broadcastState({ ...state, classes: [...state.classes, { ...cls, id: uuidv4() }] });
@@ -207,6 +219,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         deleteDepartment,
         addMajor,
         deleteMajor,
+        addGrade,
+        deleteGrade,
         addClass,
         updateClass,
         deleteClass,

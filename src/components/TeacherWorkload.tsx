@@ -77,7 +77,7 @@ export function TeacherWorkload() {
         deptBreakdown
       };
     }).sort((a, b) => b.totalHours - a.totalHours);
-  }, [state.teachers, state.schedules, state.classes, state.majors, state.departments, state.subjects]);
+  }, [state.teachers, state.schedules, state.classes, state.majors, state.departments, state.subjects, selectedDepartment, selectedSubject, selectedGender, selectedAgeRange]);
 
   const totalSchoolHours = workloadData.reduce((sum, t) => sum + t.totalHours, 0);
 
@@ -154,8 +154,8 @@ export function TeacherWorkload() {
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-sm font-medium text-slate-500">在职教师</p>
-            <p className="text-2xl font-bold text-slate-800">{state.teachers.length} <span className="text-sm font-normal text-slate-500">人</span></p>
+            <p className="text-sm font-medium text-slate-500">筛选教师</p>
+            <p className="text-2xl font-bold text-slate-800">{workloadData.length} <span className="text-sm font-normal text-slate-500">人</span></p>
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">

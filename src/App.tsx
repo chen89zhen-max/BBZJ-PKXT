@@ -93,8 +93,8 @@ function MainContent() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-slate-200 flex flex-col">
-          <div className="p-4">
+        <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-full">
+          <div className="p-4 flex-1 overflow-y-auto">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">专业部排课</h2>
             <nav className="space-y-1">
               {state.departments.map((dept) => (

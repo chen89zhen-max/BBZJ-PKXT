@@ -37,6 +37,8 @@ let state: AppState = {
   grades: [
     { id: 'grade-1', name: '2023级' },
     { id: 'grade-2', name: '2024级' },
+    { id: 'grade-3', name: '2025级' },
+    { id: 'grade-4', name: '2026级' },
   ],
   teachers: [
     { id: 't-1', name: '李中利' },

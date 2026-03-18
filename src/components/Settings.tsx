@@ -3,6 +3,7 @@ import { useAppContext } from '../context';
 import { Plus, Building2, UserCircle, BookOpen, Tags, Trash2, Edit2, Save, X, GraduationCap, Users, Upload, Download } from 'lucide-react';
 import { Class } from '../types';
 import * as xlsx from 'xlsx';
+import { SearchableTeacherSelect } from './SearchableTeacherSelect';
 
 export function Settings() {
   const { 
@@ -12,7 +13,8 @@ export function Settings() {
     addClass, updateClass, deleteClass,
     addTeacher, addTeachers, deleteTeacher,
     addSubject, addSubjects, deleteSubject,
-    addClassCategory, deleteClassCategory
+    addClassCategory, deleteClassCategory,
+    addGrade, deleteGrade
   } = useAppContext();
 
   const [activeTab, setActiveTab] = useState<'org' | 'dict'>('org');
@@ -33,6 +35,7 @@ export function Settings() {
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectType, setNewSubjectType] = useState<'公共课' | '专业课'>('公共课');
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [newGradeName, setNewGradeName] = useState('');
 
   // Class Edit State
   const [editingClassId, setEditingClassId] = useState<string | null>(null);
@@ -74,6 +77,77 @@ export function Settings() {
   const startEditClass = (cls: Class) => {
     setEditingClassId(cls.id);
     setClassForm(cls);
+  };
+
+  const handleClassImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const bstr = evt.target?.result;
+      const wb = xlsx.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data = xlsx.utils.sheet_to_json(ws);
+      
+      const classesToAdd = data.map((row: any) => {
+        // Find major by name
+        const majorName = row['所属专业'] || row['major'] || '';
+        const major = state.majors.find(m => m.name === majorName);
+        
+        // Find grade by name
+        const gradeName = row['年级'] || row['grade'] || '';
+        const grade = state.grades.find(g => g.name === gradeName);
+        
+        // Find head teacher by name or ID card
+        const teacherName = row['班主任姓名'] || row['headTeacher'] || '';
+        const teacherIdCard = row['班主任身份证'] || row['headTeacherIdCard'] || '';
+        let headTeacherId = '';
+        if (teacherIdCard) {
+          const teacher = state.teachers.find(t => t.idCard === String(teacherIdCard));
+          if (teacher) headTeacherId = teacher.id;
+        } else if (teacherName) {
+          const teacher = state.teachers.find(t => t.name === teacherName);
+          if (teacher) headTeacherId = teacher.id;
+        }
+
+        // Find class category
+        const typeName = row['班级类型'] || row['type'] || '普通班';
+        const category = state.classCategories.find(c => c.name === typeName);
+
+        return {
+          majorId: major?.id || '',
+          gradeId: grade?.id || '',
+          name: row['班级名称'] || row['name'] || '',
+          type: category?.name || typeName,
+          classroom: row['教室'] || row['classroom'] || '',
+          studentCount: parseInt(row['人数'] || row['studentCount'] || '0') || 0,
+          headTeacherId
+        };
+      }).filter(c => c.name && c.majorId && c.gradeId);
+
+      classesToAdd.forEach(c => addClass(c));
+      
+      // Reset input
+      e.target.value = '';
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const downloadClassTemplate = () => {
+    const ws = xlsx.utils.json_to_sheet([{
+      '所属专业': '计算机应用',
+      '年级': '2023级',
+      '班级名称': '23计算机1班',
+      '班级类型': '普通班',
+      '教室': '教学楼101',
+      '人数': 45,
+      '班主任姓名': '张三',
+      '班主任身份证': '110105199001011234'
+    }]);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, '班级导入模板');
+    xlsx.writeFile(wb, '班级导入模板.xlsx');
   };
 
   const handleTeacherImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,13 +309,26 @@ export function Settings() {
 
           {/* Classes */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
-            <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-                <Users className="w-4 h-4 text-amber-600" /> 班级
-              </h3>
-              <button onClick={handleAddClass} disabled={!selectedMajorId} className="bg-amber-600 text-white px-3 py-1.5 rounded-md hover:bg-amber-700 disabled:opacity-50 text-sm flex items-center gap-1">
-                <Plus className="w-4 h-4" /> 添加班级
-              </button>
+            <div className="p-4 border-b border-slate-100 bg-slate-50 flex flex-col gap-3">
+              <div className="flex justify-between items-center">
+                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-amber-600" /> 班级
+                </h3>
+                <div className="flex gap-2">
+                  <button onClick={downloadClassTemplate} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded text-xs flex items-center gap-1 border border-slate-300">
+                    <Download className="w-3 h-3" /> 下载模板
+                  </button>
+                  <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded text-xs flex items-center gap-1 border border-slate-300">
+                    <Upload className="w-3 h-3" /> 导入Excel
+                    <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleClassImport} />
+                  </label>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button onClick={handleAddClass} disabled={!selectedMajorId} className="bg-amber-600 text-white px-3 py-1.5 rounded-md hover:bg-amber-700 disabled:opacity-50 text-sm flex items-center gap-1">
+                  <Plus className="w-4 h-4" /> 添加班级
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-auto p-2 space-y-2">
               {!selectedMajorId ? (
@@ -278,10 +365,12 @@ export function Settings() {
                           </div>
                           <div>
                             <label className="block text-xs text-slate-500 mb-1">班主任</label>
-                            <select value={classForm.headTeacherId || ''} onChange={e => setClassForm({...classForm, headTeacherId: e.target.value})} className="w-full px-2 py-1 border rounded">
-                              <option value="">无</option>
-                              {state.teachers.map(t => <option key={t.id} value={t.id}>{t.name} {t.idCard ? `(${t.idCard.length === 18 ? t.idCard.substring(14) : t.idCard})` : ''}</option>)}
-                            </select>
+                            <SearchableTeacherSelect
+                              value={classForm.headTeacherId || ''}
+                              onChange={val => setClassForm({...classForm, headTeacherId: val})}
+                              teachers={state.teachers}
+                              placeholder="无"
+                            />
                           </div>
                         </div>
                         <div className="flex justify-end gap-2 mt-2">
@@ -316,7 +405,7 @@ export function Settings() {
       )}
 
       {activeTab === 'dict' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Teachers */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
             <div className="p-4 border-b border-slate-100 bg-slate-50">
@@ -444,6 +533,29 @@ export function Settings() {
                   <div key={c.id} className="flex items-center gap-1 bg-amber-50 px-3 py-1.5 rounded-full text-sm border border-amber-200 text-amber-800">
                     {c.name}
                     <button onClick={() => deleteClassCategory(c.id)} className="text-amber-400 hover:text-rose-600 ml-1"><X className="w-3 h-3" /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Grades */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
+            <div className="p-4 border-b border-slate-100 bg-slate-50">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                <Tags className="w-4 h-4 text-purple-600" /> 年级字典
+              </h3>
+              <form onSubmit={(e) => { e.preventDefault(); if(newGradeName.trim()) { addGrade(newGradeName.trim()); setNewGradeName(''); } }} className="mt-3 flex gap-2">
+                <input type="text" value={newGradeName} onChange={(e) => setNewGradeName(e.target.value)} placeholder="新年级名称..." className="flex-1 px-3 py-1.5 border border-slate-300 rounded-md text-sm" />
+                <button type="submit" disabled={!newGradeName.trim()} className="bg-purple-600 text-white px-3 py-1.5 rounded-md hover:bg-purple-700 disabled:opacity-50 text-sm"><Plus className="w-4 h-4" /></button>
+              </form>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <div className="flex flex-wrap gap-2">
+                {state.grades.map(g => (
+                  <div key={g.id} className="flex items-center gap-1 bg-purple-50 px-3 py-1.5 rounded-full text-sm border border-purple-200 text-purple-800">
+                    {g.name}
+                    <button onClick={() => deleteGrade(g.id)} className="text-purple-400 hover:text-rose-600 ml-1"><X className="w-3 h-3" /></button>
                   </div>
                 ))}
               </div>

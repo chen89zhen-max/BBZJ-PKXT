@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context';
 import { Department, Grade, Major, Class, Subject, Teacher } from '../types';
+import { SearchableTeacherSelect } from './SearchableTeacherSelect';
 
 export function MatrixSchedule({ department }: { department: Department }) {
   const { state, updateSchedule } = useAppContext();
   
   const [selectedGradeId, setSelectedGradeId] = useState<string>(state.grades[0]?.id || '');
+  const [selectedMajorId, setSelectedMajorId] = useState<string>('all');
 
   // Filter majors for this department
   const deptMajors = useMemo(() => state.majors.filter(m => m.departmentId === department.id), [state.majors, department.id]);
@@ -13,8 +15,12 @@ export function MatrixSchedule({ department }: { department: Department }) {
 
   // Filter classes for this department and selected grade
   const classes = useMemo(() => {
-    return state.classes.filter(c => deptMajorIds.has(c.majorId) && c.gradeId === selectedGradeId);
-  }, [state.classes, deptMajorIds, selectedGradeId]);
+    return state.classes.filter(c => 
+      deptMajorIds.has(c.majorId) && 
+      c.gradeId === selectedGradeId &&
+      (selectedMajorId === 'all' || c.majorId === selectedMajorId)
+    );
+  }, [state.classes, deptMajorIds, selectedGradeId, selectedMajorId]);
 
   // Handle cell updates
   const handleCellChange = (classId: string, subjectId: string, field: 'teacherId' | 'hours', value: string | number) => {
@@ -55,6 +61,20 @@ export function MatrixSchedule({ department }: { department: Department }) {
           >
             {state.grades.map(g => (
               <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+          
+          <div className="w-px h-6 bg-slate-200 mx-1"></div>
+          
+          <label className="text-sm font-medium text-slate-600 pl-2">专业:</label>
+          <select 
+            value={selectedMajorId} 
+            onChange={e => setSelectedMajorId(e.target.value)}
+            className="border-none bg-slate-50 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none max-w-[200px]"
+          >
+            <option value="all">全部专业</option>
+            {deptMajors.map(m => (
+              <option key={m.id} value={m.id}>{m.name}</option>
             ))}
           </select>
         </div>
@@ -150,18 +170,15 @@ export function MatrixSchedule({ department }: { department: Department }) {
                         return (
                           <React.Fragment key={`${c.id}-${subject.id}`}>
                             <td className="border border-slate-300 p-0 relative group">
-                              <select
+                              <SearchableTeacherSelect
                                 value={schedule?.teacherId || ''}
-                                onChange={(e) => handleCellChange(c.id, subject.id, 'teacherId', e.target.value)}
-                                className="w-full h-full min-h-[40px] px-2 py-1 bg-transparent border-none outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 text-center appearance-none cursor-pointer group-hover:bg-indigo-50/50 transition-colors"
-                              >
-                                <option value=""></option>
-                                {state.teachers.map(t => (
-                                  <option key={t.id} value={t.id}>
-                                    {t.name} {t.idCard ? `(${t.idCard.length === 18 ? t.idCard.substring(14) : t.idCard})` : ''}
-                                  </option>
-                                ))}
-                              </select>
+                                onChange={(val) => handleCellChange(c.id, subject.id, 'teacherId', val)}
+                                teachers={state.teachers}
+                                placeholder=""
+                                className="h-full"
+                                buttonClassName="w-full h-full min-h-[40px] px-2 py-1 bg-transparent border-none outline-none focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500 text-center cursor-pointer group-hover:bg-indigo-50/50 transition-colors flex items-center justify-center"
+                                hideChevron
+                              />
                             </td>
                             <td className="border border-slate-300 p-0 relative group">
                               <input
