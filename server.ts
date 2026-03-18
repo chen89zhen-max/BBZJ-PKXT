@@ -158,6 +158,9 @@ async function startServer() {
     res.json(state);
   });
 
+  // Dummy favicon route to prevent 404 errors
+  app.get('/favicon.ico', (req, res) => res.status(204).end());
+
   // Prevent caching of index.html to avoid blank screens after updates
   app.use((req, res, next) => {
     if (req.url === '/' || req.url === '/index.html') {
@@ -179,6 +182,21 @@ async function startServer() {
     // Serve static files in production
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
+    
+    // Fallback for cached development index.html
+    // If the browser requests /src/* or /@vite/client, it means it has a cached dev index.html.
+    // We return a script that redirects to a cache-busting URL to clear the cache.
+    app.get(['/src/*', '/@vite/client'], (req, res) => {
+      res.setHeader('Content-Type', 'application/javascript');
+      res.send(`
+        if (!window.location.search.includes('clearcache')) {
+          window.location.href = window.location.pathname + '?clearcache=' + Date.now();
+        } else {
+          console.error('Failed to clear cache. Please manually clear your browser cache (Ctrl+F5).');
+        }
+      `);
+    });
+
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
