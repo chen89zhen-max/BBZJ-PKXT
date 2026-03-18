@@ -9,7 +9,7 @@ RUN npm run build
 # Production stage
 FROM node:22-alpine
 WORKDIR /app
-COPY package*.json ./
+COPY --from=build /app/package*.json ./
 RUN npm ci --omit=dev && npm install -g tsx
 COPY --from=build /app/dist ./dist
 COPY server.ts ./
