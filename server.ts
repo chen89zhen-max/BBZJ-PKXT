@@ -3,7 +3,11 @@ import { createServer as createViteServer } from 'vite';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import path from 'path';
+import fs from 'fs';
 import { AppState } from './src/types';
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_FILE = path.join(DATA_DIR, 'db.json');
 
 // Initial State
 let state: AppState = {
@@ -114,7 +118,37 @@ let state: AppState = {
   ],
 };
 
+function loadState() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (fs.existsSync(DATA_FILE)) {
+      const data = fs.readFileSync(DATA_FILE, 'utf-8');
+      state = JSON.parse(data);
+      console.log('Loaded state from disk.');
+    } else {
+      saveState(); // Save initial default state
+      console.log('Created new state file with default data.');
+    }
+  } catch (err) {
+    console.error('Error loading state:', err);
+  }
+}
+
+function saveState() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(DATA_FILE, JSON.stringify(state, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving state:', err);
+  }
+}
+
 async function startServer() {
+  loadState();
   const app = express();
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
@@ -140,6 +174,7 @@ async function startServer() {
     // Handle updates
     socket.on('state:update', (newState: AppState) => {
       state = newState;
+      saveState();
       // Broadcast to all OTHER clients
       socket.broadcast.emit('state:sync', state);
     });
