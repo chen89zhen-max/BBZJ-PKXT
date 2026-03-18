@@ -1,9 +1,0 @@
-version: '3.8'
-
-services:
-  school-schedule-app:
-    build: .
-    container_name: school-schedule-app
-    ports:
-      - "3000:3000"
-    restart: unless-stopped

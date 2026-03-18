@@ -21,12 +21,13 @@ interface AppContextType {
   deleteClass: (id: string) => void;
   
   // Teachers
-  addTeacher: (name: string) => void;
+  addTeacher: (teacher: Omit<Teacher, 'id'>) => void;
+  addTeachers: (teachers: Omit<Teacher, 'id'>[]) => void;
   deleteTeacher: (id: string) => void;
   
   // Subjects
   addSubject: (name: string, type: '公共课' | '专业课') => void;
-  deleteSubject: (id: string) => void;
+  addSubjects: (subjects: Omit<Subject, 'id'>[]) => void;
   
   // Class Categories
   addClassCategory: (name: string) => void;
@@ -52,13 +53,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   useEffect(() => {
-    // Connect to the same host/port, forcing polling first to avoid WebSocket connection issues in some proxy environments
-    const newSocket = io({
-      path: '/socket.io/',
-      transports: ['polling', 'websocket'],
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
+    // Connect to the same host/port
+    const newSocket = io();
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
@@ -130,8 +126,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // Teachers
-  const addTeacher = (name: string) => {
-    broadcastState({ ...state, teachers: [...state.teachers, { id: uuidv4(), name }] });
+  const addTeacher = (teacher: Omit<Teacher, 'id'>) => {
+    broadcastState({ ...state, teachers: [...state.teachers, { ...teacher, id: uuidv4() }] });
+  };
+  const addTeachers = (newTeachers: Omit<Teacher, 'id'>[]) => {
+    const teachersToAdd = newTeachers.map(t => ({ ...t, id: uuidv4() }));
+    broadcastState({ ...state, teachers: [...state.teachers, ...teachersToAdd] });
   };
   const deleteTeacher = (id: string) => {
     broadcastState({ ...state, teachers: state.teachers.filter(t => t.id !== id) });
@@ -140,6 +140,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Subjects
   const addSubject = (name: string, type: '公共课' | '专业课') => {
     broadcastState({ ...state, subjects: [...state.subjects, { id: uuidv4(), name, type }] });
+  };
+  const addSubjects = (newSubjects: Omit<Subject, 'id'>[]) => {
+    const subjectsToAdd = newSubjects.map(s => ({ ...s, id: uuidv4() }));
+    broadcastState({ ...state, subjects: [...state.subjects, ...subjectsToAdd] });
   };
   const deleteSubject = (id: string) => {
     broadcastState({ ...state, subjects: state.subjects.filter(s => s.id !== id) });
@@ -166,8 +170,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateClass,
         deleteClass,
         addTeacher,
+        addTeachers,
         deleteTeacher,
         addSubject,
+        addSubjects,
         deleteSubject,
         addClassCategory,
         deleteClassCategory,
