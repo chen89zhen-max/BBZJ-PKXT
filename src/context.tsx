@@ -43,6 +43,7 @@ interface AppContextType {
   
   // Schedules
   clearSchedules: () => void;
+  clearDepartmentSchedules: (departmentId: string) => void;
   
   connected: boolean;
 }
@@ -111,6 +112,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const clearSchedules = () => {
     broadcastState({ ...state, schedules: [] });
+  };
+
+  const clearDepartmentSchedules = (departmentId: string) => {
+    const deptMajors = state.majors.filter(m => m.departmentId === departmentId);
+    const deptMajorIds = new Set(deptMajors.map(m => m.id));
+    const deptClassIds = new Set(state.classes.filter(c => deptMajorIds.has(c.majorId)).map(c => c.id));
+    
+    broadcastState({
+      ...state,
+      schedules: state.schedules.filter(s => !deptClassIds.has(s.classId))
+    });
   };
 
   // Departments
@@ -259,6 +271,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addClassCategory,
         deleteClassCategory,
         clearSchedules,
+        clearDepartmentSchedules,
         connected,
       }}
     >

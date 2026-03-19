@@ -8,7 +8,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { PromptModal } from './PromptModal';
 
 export function MatrixSchedule({ department }: { department: Department }) {
-  const { state, updateSchedule, clearSchedules } = useAppContext();
+  const { state, updateSchedule, clearDepartmentSchedules } = useAppContext();
   
   const [selectedGradeId, setSelectedGradeId] = useState<string>('all');
   const [selectedMajorId, setSelectedMajorId] = useState<string>('all');
@@ -74,39 +74,120 @@ export function MatrixSchedule({ department }: { department: Department }) {
 
   const confirmClearSchedules = () => {
     setShowConfirmClear(false);
-    clearSchedules();
+    clearDepartmentSchedules(department.id);
     setAlertMessage({
       title: '操作成功',
-      message: '全校排课记录已成功清空。',
+      message: `【${department.name}】的排课记录已成功清空。`,
       type: 'info'
     });
   };
 
   const handleExportExcel = () => {
-    // Export current department's schedule or all? Let's export current view
-    const data: any[] = [];
+    const aoa: any[][] = [];
     
-    // Header row
-    const headerRow: any = { '科目': '' };
+    // Row 1: 班级
+    const row1 = ['班级', '', ''];
     classes.forEach(c => {
-      headerRow[c.name] = '教师 / 课时';
+      row1.push(c.name);
+      row1.push('');
     });
-    
-    filteredSubjects.forEach(subject => {
-      const row: any = { '科目': subject.name };
-      classes.forEach(cls => {
-        const schedule = state.schedules.find(s => s.classId === cls.id && s.subjectId === subject.id);
+    aoa.push(row1);
+
+    // Row 2: 类别
+    const row2 = ['类别', '', ''];
+    classes.forEach(c => {
+      const category = state.classCategories.find(cat => cat.id === c.categoryId);
+      row2.push(category?.name || '');
+      row2.push('');
+    });
+    aoa.push(row2);
+
+    // Row 3: 教室
+    const row3 = ['教室', '', ''];
+    classes.forEach(c => {
+      row3.push(c.room || '');
+      row3.push('');
+    });
+    aoa.push(row3);
+
+    // Row 4: 人数
+    const row4 = ['人数', '', ''];
+    classes.forEach(c => {
+      row4.push(c.studentCount || 0);
+      row4.push('');
+    });
+    aoa.push(row4);
+
+    // Row 5: 班主任
+    const row5 = ['班主任', '', ''];
+    classes.forEach(c => {
+      const headTeacher = state.teachers.find(t => t.id === c.headTeacherId);
+      row5.push(headTeacher?.name || '');
+      row5.push('');
+    });
+    aoa.push(row5);
+
+    // Row 6: Headers
+    const row6 = ['序号', '科目', '总课时'];
+    classes.forEach(c => {
+      row6.push('任课教师');
+      row6.push('课时数');
+    });
+    aoa.push(row6);
+
+    // Data rows
+    filteredSubjects.forEach((subject, index) => {
+      const totalHours = classes.reduce((sum, c) => {
+        const sch = state.schedules.find(s => s.classId === c.id && s.subjectId === subject.id);
+        return sum + (sch?.hours || 0);
+      }, 0);
+
+      const row = [index + 1, subject.name, totalHours || ''];
+      classes.forEach(c => {
+        const schedule = state.schedules.find(s => s.classId === c.id && s.subjectId === subject.id);
         if (schedule && schedule.teacherId) {
           const teacher = state.teachers.find(t => t.id === schedule.teacherId);
-          row[cls.name] = `${teacher?.name || '未知'} (${schedule.hours}节)`;
+          row.push(teacher?.name || '');
+          row.push(schedule.hours || '');
         } else {
-          row[cls.name] = '';
+          row.push('');
+          row.push('');
         }
       });
-      data.push(row);
+      aoa.push(row);
     });
 
-    const ws = xlsx.utils.json_to_sheet(data);
+    const ws = xlsx.utils.aoa_to_sheet(aoa);
+
+    // Add merges
+    const merges = [];
+    // Merge A1:C1, A2:C2, A3:C3, A4:C4, A5:C5
+    for (let r = 0; r < 5; r++) {
+      merges.push({ s: { r: r, c: 0 }, e: { r: r, c: 2 } });
+    }
+
+    // Merge class columns in rows 1-5
+    classes.forEach((c, i) => {
+      const startCol = 3 + i * 2;
+      for (let r = 0; r < 5; r++) {
+        merges.push({ s: { r: r, c: startCol }, e: { r: r, c: startCol + 1 } });
+      }
+    });
+
+    ws['!merges'] = merges;
+
+    // Set column widths for better readability
+    const colWidths = [
+      { wch: 6 },  // 序号
+      { wch: 20 }, // 科目
+      { wch: 8 },  // 总课时
+    ];
+    classes.forEach(() => {
+      colWidths.push({ wch: 15 }); // 任课教师
+      colWidths.push({ wch: 8 });  // 课时数
+    });
+    ws['!cols'] = colWidths;
+
     const wb = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(wb, ws, '排课记录');
     
@@ -298,7 +379,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
       <PromptModal
         isOpen={showPasswordPrompt}
         title="需要超级管理员权限"
-        message="请输入超级管理员密码以执行清空全校排课记录操作："
+        message={`请输入超级管理员密码以执行清空【${department.name}】排课记录操作：`}
         placeholder="请输入密码"
         isPassword={true}
         onConfirm={handlePasswordSubmit}
@@ -308,7 +389,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
       <ConfirmModal
         isOpen={showConfirmClear}
         title="警告：危险操作"
-        message="此操作将不可逆地清空全校所有排课记录！您确定要继续吗？"
+        message={`此操作将不可逆地清空【${department.name}】的所有排课记录！您确定要继续吗？`}
         type="danger"
         confirmText="确认清空"
         onConfirm={confirmClearSchedules}

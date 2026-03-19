@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context';
-import { Users, BookOpen, Clock, Filter } from 'lucide-react';
+import { Users, BookOpen, Clock, Filter, Search, Download } from 'lucide-react';
+import * as xlsx from 'xlsx';
 
 const calculateAge = (idCard?: string) => {
   if (!idCard || idCard.length !== 18) return null;
@@ -22,9 +23,16 @@ export function TeacherWorkload() {
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedGender, setSelectedGender] = useState<string>('all');
   const [selectedAgeRange, setSelectedAgeRange] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const workloadData = useMemo(() => {
     let filteredTeachers = state.teachers;
+    
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      filteredTeachers = filteredTeachers.filter(t => t.name.toLowerCase().includes(query));
+    }
+    
     if (selectedDepartment !== 'all') {
       filteredTeachers = filteredTeachers.filter(t => (t.department || '未分配') === selectedDepartment);
     }
@@ -77,7 +85,7 @@ export function TeacherWorkload() {
         deptBreakdown
       };
     }).sort((a, b) => b.totalHours - a.totalHours);
-  }, [state.teachers, state.schedules, state.classes, state.majors, state.departments, state.subjects, selectedDepartment, selectedSubject, selectedGender, selectedAgeRange]);
+  }, [state.teachers, state.schedules, state.classes, state.majors, state.departments, state.subjects, selectedDepartment, selectedSubject, selectedGender, selectedAgeRange, searchQuery]);
 
   const totalSchoolHours = workloadData.reduce((sum, t) => sum + t.totalHours, 0);
 
@@ -93,6 +101,44 @@ export function TeacherWorkload() {
     return Array.from(subs).sort();
   }, [state.teachers]);
 
+  const handleExportExcel = () => {
+    const data = workloadData.map(teacher => {
+      const details = Object.entries(teacher.deptBreakdown).map(([deptName, classes]) => {
+        const classDetails = classes.map(c => `${c.className} - ${c.subjectName} (${c.hours}节)`).join(', ');
+        return `【${deptName}】: ${classDetails}`;
+      }).join('；\n');
+
+      return {
+        '教师姓名': teacher.name,
+        '性别': teacher.gender || '未知',
+        '年龄': calculateAge(teacher.idCard) || '未知',
+        '所属产业部': teacher.department || '未分配',
+        '任教科目': teacher.primarySubject || '未分配',
+        '总课时/周': teacher.totalHours,
+        '授课详情': details || '暂无排课'
+      };
+    });
+
+    const ws = xlsx.utils.json_to_sheet(data);
+    
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 12 }, // 教师姓名
+      { wch: 6 },  // 性别
+      { wch: 6 },  // 年龄
+      { wch: 15 }, // 所属产业部
+      { wch: 15 }, // 任教科目
+      { wch: 12 }, // 总课时/周
+      { wch: 80 }  // 授课详情
+    ];
+
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, '教师工作量统计');
+    
+    const fileName = `教师工作量统计_${new Date().toISOString().split('T')[0]}.xlsx`;
+    xlsx.writeFile(wb, fileName);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -101,7 +147,17 @@ export function TeacherWorkload() {
           <p className="text-sm text-slate-500 mt-1">实时汇总全校教师在各专业部的排课情况</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-400" />
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="搜索教师姓名..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-48"
+            />
+          </div>
+          <Filter className="w-4 h-4 text-slate-400 ml-2" />
           <select 
             value={selectedDepartment} 
             onChange={(e) => setSelectedDepartment(e.target.value)}
@@ -144,6 +200,14 @@ export function TeacherWorkload() {
             <option value="over50">50岁以上</option>
             <option value="unknown">未知</option>
           </select>
+          
+          <button
+            onClick={handleExportExcel}
+            className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors text-sm shadow-sm"
+          >
+            <Download className="w-4 h-4" />
+            导出统计
+          </button>
         </div>
       </div>
 
