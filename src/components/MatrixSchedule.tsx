@@ -2,12 +2,20 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context';
 import { Department, Grade, Major, Class, Subject, Teacher } from '../types';
 import { SearchableTeacherSelect } from './SearchableTeacherSelect';
+import { Download, Trash2 } from 'lucide-react';
+import * as xlsx from 'xlsx';
+import { ConfirmModal } from './ConfirmModal';
+import { PromptModal } from './PromptModal';
 
 export function MatrixSchedule({ department }: { department: Department }) {
-  const { state, updateSchedule } = useAppContext();
+  const { state, updateSchedule, clearSchedules } = useAppContext();
   
   const [selectedGradeId, setSelectedGradeId] = useState<string>('all');
   const [selectedMajorId, setSelectedMajorId] = useState<string>('all');
+  
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+  const [showConfirmClear, setShowConfirmClear] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<{title: string, message: string, type: 'danger' | 'warning' | 'info'} | null>(null);
 
   // Filter majors for this department
   const deptMajors = useMemo(() => state.majors.filter(m => m.departmentId === department.id), [state.majors, department.id]);
@@ -47,6 +55,65 @@ export function MatrixSchedule({ department }: { department: Department }) {
     updateSchedule(classId, subjectId, teacherId, hours);
   };
 
+  const handleClearSchedules = () => {
+    setShowPasswordPrompt(true);
+  };
+
+  const handlePasswordSubmit = (password: string) => {
+    setShowPasswordPrompt(false);
+    if (password === 'Bbzj@1234') {
+      setShowConfirmClear(true);
+    } else {
+      setAlertMessage({
+        title: '密码错误',
+        message: '您输入的超级管理员密码不正确，操作已取消。',
+        type: 'danger'
+      });
+    }
+  };
+
+  const confirmClearSchedules = () => {
+    setShowConfirmClear(false);
+    clearSchedules();
+    setAlertMessage({
+      title: '操作成功',
+      message: '全校排课记录已成功清空。',
+      type: 'info'
+    });
+  };
+
+  const handleExportExcel = () => {
+    // Export current department's schedule or all? Let's export current view
+    const data: any[] = [];
+    
+    // Header row
+    const headerRow: any = { '科目': '' };
+    classes.forEach(c => {
+      headerRow[c.name] = '教师 / 课时';
+    });
+    
+    filteredSubjects.forEach(subject => {
+      const row: any = { '科目': subject.name };
+      classes.forEach(cls => {
+        const schedule = state.schedules.find(s => s.classId === cls.id && s.subjectId === subject.id);
+        if (schedule && schedule.teacherId) {
+          const teacher = state.teachers.find(t => t.id === schedule.teacherId);
+          row[cls.name] = `${teacher?.name || '未知'} (${schedule.hours}节)`;
+        } else {
+          row[cls.name] = '';
+        }
+      });
+      data.push(row);
+    });
+
+    const ws = xlsx.utils.json_to_sheet(data);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, '排课记录');
+    
+    const fileName = `${department.name}_排课记录_${new Date().toISOString().split('T')[0]}.xlsx`;
+    xlsx.writeFile(wb, fileName);
+  };
+
   if (state.grades.length === 0) {
     return <div>请先添加年级数据</div>;
   }
@@ -59,33 +126,51 @@ export function MatrixSchedule({ department }: { department: Department }) {
           <p className="text-sm text-slate-500 mt-1">全局掌控各班级、各科目的排课情况</p>
         </div>
         
-        {/* Filters */}
-        <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
-          <label className="text-sm font-medium text-slate-600 pl-2">年级:</label>
-          <select 
-            value={selectedGradeId} 
-            onChange={e => setSelectedGradeId(e.target.value)}
-            className="border-none bg-slate-50 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-          >
-            <option value="all">全部年级</option>
-            {state.grades.map(g => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
-          
-          <div className="w-px h-6 bg-slate-200 mx-1"></div>
-          
-          <label className="text-sm font-medium text-slate-600 pl-2">专业:</label>
-          <select 
-            value={selectedMajorId} 
-            onChange={e => setSelectedMajorId(e.target.value)}
-            className="border-none bg-slate-50 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none max-w-[200px]"
-          >
-            <option value="all">全部专业</option>
-            {deptMajors.map(m => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-4">
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleExportExcel}
+              className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors text-sm font-medium"
+            >
+              <Download className="w-4 h-4" /> 导出Excel
+            </button>
+            <button 
+              onClick={handleClearSchedules}
+              className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-md hover:bg-rose-100 transition-colors text-sm font-medium"
+            >
+              <Trash2 className="w-4 h-4" /> 清空排课
+            </button>
+          </div>
+
+          {/* Filters */}
+          <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
+            <label className="text-sm font-medium text-slate-600 pl-2">年级:</label>
+            <select 
+              value={selectedGradeId} 
+              onChange={e => setSelectedGradeId(e.target.value)}
+              className="border-none bg-slate-50 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            >
+              <option value="all">全部年级</option>
+              {state.grades.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+            
+            <div className="w-px h-6 bg-slate-200 mx-1"></div>
+            
+            <label className="text-sm font-medium text-slate-600 pl-2">专业:</label>
+            <select 
+              value={selectedMajorId} 
+              onChange={e => setSelectedMajorId(e.target.value)}
+              className="border-none bg-slate-50 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none max-w-[200px]"
+            >
+              <option value="all">全部专业</option>
+              {deptMajors.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -209,6 +294,36 @@ export function MatrixSchedule({ department }: { department: Department }) {
           </div>
         </div>
       )}
+
+      <PromptModal
+        isOpen={showPasswordPrompt}
+        title="需要超级管理员权限"
+        message="请输入超级管理员密码以执行清空全校排课记录操作："
+        placeholder="请输入密码"
+        isPassword={true}
+        onConfirm={handlePasswordSubmit}
+        onCancel={() => setShowPasswordPrompt(false)}
+      />
+
+      <ConfirmModal
+        isOpen={showConfirmClear}
+        title="警告：危险操作"
+        message="此操作将不可逆地清空全校所有排课记录！您确定要继续吗？"
+        type="danger"
+        confirmText="确认清空"
+        onConfirm={confirmClearSchedules}
+        onCancel={() => setShowConfirmClear(false)}
+      />
+
+      <ConfirmModal
+        isOpen={alertMessage !== null}
+        title={alertMessage?.title || ''}
+        message={alertMessage?.message || ''}
+        type={alertMessage?.type || 'info'}
+        confirmText="知道了"
+        onConfirm={() => setAlertMessage(null)}
+        onCancel={() => setAlertMessage(null)}
+      />
     </div>
   );
 }

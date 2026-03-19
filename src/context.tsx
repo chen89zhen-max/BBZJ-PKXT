@@ -23,20 +23,26 @@ interface AppContextType {
   addClass: (cls: Omit<Class, 'id'>) => void;
   updateClass: (cls: Class) => void;
   deleteClass: (id: string) => void;
+  deleteClasses: (ids: string[]) => void;
   
   // Teachers
   addTeacher: (teacher: Omit<Teacher, 'id'>) => void;
   addTeachers: (teachers: Omit<Teacher, 'id'>[]) => void;
   deleteTeacher: (id: string) => void;
+  deleteTeachers: (ids: string[]) => void;
   
   // Subjects
   addSubject: (name: string, type: '公共课' | '专业课', departmentId?: string, majorId?: string) => void;
   addSubjects: (subjects: Omit<Subject, 'id'>[]) => void;
   deleteSubject: (id: string) => void;
+  deleteSubjects: (ids: string[]) => void;
   
   // Class Categories
   addClassCategory: (name: string) => void;
   deleteClassCategory: (id: string) => void;
+  
+  // Schedules
+  clearSchedules: () => void;
   
   connected: boolean;
 }
@@ -103,6 +109,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     broadcastState({ ...state, schedules: newSchedules });
   };
 
+  const clearSchedules = () => {
+    broadcastState({ ...state, schedules: [] });
+  };
+
   // Departments
   const addDepartment = (name: string) => {
     broadcastState({ ...state, departments: [...state.departments, { id: uuidv4(), name }] });
@@ -136,6 +146,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
   const deleteClass = (id: string) => {
     broadcastState({ ...state, classes: state.classes.filter(c => c.id !== id) });
+  };
+  const deleteClasses = (ids: string[]) => {
+    const idSet = new Set(ids);
+    broadcastState({ ...state, classes: state.classes.filter(c => !idSet.has(c.id)) });
   };
 
   // Teachers
@@ -190,6 +204,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteTeacher = (id: string) => {
     broadcastState({ ...state, teachers: state.teachers.filter(t => t.id !== id) });
   };
+  const deleteTeachers = (ids: string[]) => {
+    const idSet = new Set(ids);
+    broadcastState({ ...state, teachers: state.teachers.filter(t => !idSet.has(t.id)) });
+  };
 
   // Subjects
   const addSubject = (name: string, type: '公共课' | '专业课', departmentId?: string, majorId?: string) => {
@@ -201,6 +219,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
   const deleteSubject = (id: string) => {
     broadcastState({ ...state, subjects: state.subjects.filter(s => s.id !== id) });
+  };
+  const deleteSubjects = (ids: string[]) => {
+    const idSet = new Set(ids);
+    broadcastState({ ...state, subjects: state.subjects.filter(s => !idSet.has(s.id)) });
   };
 
   // Class Categories
@@ -225,14 +247,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addClass,
         updateClass,
         deleteClass,
+        deleteClasses,
         addTeacher,
         addTeachers,
         deleteTeacher,
+        deleteTeachers,
         addSubject,
         addSubjects,
         deleteSubject,
+        deleteSubjects,
         addClassCategory,
         deleteClassCategory,
+        clearSchedules,
         connected,
       }}
     >

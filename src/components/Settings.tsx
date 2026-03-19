@@ -4,15 +4,16 @@ import { Plus, Building2, UserCircle, BookOpen, Tags, Trash2, Edit2, Save, X, Gr
 import { Class } from '../types';
 import * as xlsx from 'xlsx';
 import { SearchableTeacherSelect } from './SearchableTeacherSelect';
+import { ConfirmModal } from './ConfirmModal';
 
 export function Settings() {
   const { 
     state, 
     addDepartment, deleteDepartment,
     addMajor, deleteMajor,
-    addClass, updateClass, deleteClass,
-    addTeacher, addTeachers, deleteTeacher,
-    addSubject, addSubjects, deleteSubject,
+    addClass, updateClass, deleteClass, deleteClasses,
+    addTeacher, addTeachers, deleteTeacher, deleteTeachers,
+    addSubject, addSubjects, deleteSubject, deleteSubjects,
     addClassCategory, deleteClassCategory,
     addGrade, deleteGrade
   } = useAppContext();
@@ -39,11 +40,87 @@ export function Settings() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newGradeName, setNewGradeName] = useState('');
 
+  // Batch Delete State
+  const [selectedTeachers, setSelectedTeachers] = useState<Set<string>>(new Set());
+  const [selectedSubjects, setSelectedSubjects] = useState<Set<string>>(new Set());
+  const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set());
+
+  // Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+
   // Class Edit State
   const [editingClassId, setEditingClassId] = useState<string | null>(null);
   const [classForm, setClassForm] = useState<Partial<Class>>({});
 
   // Handlers
+  const toggleTeacherSelection = (id: string) => {
+    const newSet = new Set(selectedTeachers);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedTeachers(newSet);
+  };
+
+  const toggleSubjectSelection = (id: string) => {
+    const newSet = new Set(selectedSubjects);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedSubjects(newSet);
+  };
+
+  const toggleClassSelection = (id: string) => {
+    const newSet = new Set(selectedClasses);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedClasses(newSet);
+  };
+
+  const handleBatchDeleteTeachers = () => {
+    if (selectedTeachers.size === 0) return;
+    setConfirmModal({
+      isOpen: true,
+      title: '确认删除',
+      message: `确定要删除选中的 ${selectedTeachers.size} 名教师吗？此操作不可恢复。`,
+      onConfirm: () => {
+        deleteTeachers(Array.from(selectedTeachers));
+        setSelectedTeachers(new Set());
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  const handleBatchDeleteSubjects = () => {
+    if (selectedSubjects.size === 0) return;
+    setConfirmModal({
+      isOpen: true,
+      title: '确认删除',
+      message: `确定要删除选中的 ${selectedSubjects.size} 个科目吗？此操作不可恢复。`,
+      onConfirm: () => {
+        deleteSubjects(Array.from(selectedSubjects));
+        setSelectedSubjects(new Set());
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  const handleBatchDeleteClasses = () => {
+    if (selectedClasses.size === 0) return;
+    setConfirmModal({
+      isOpen: true,
+      title: '确认删除',
+      message: `确定要删除选中的 ${selectedClasses.size} 个班级吗？此操作不可恢复。`,
+      onConfirm: () => {
+        deleteClasses(Array.from(selectedClasses));
+        setSelectedClasses(new Set());
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
   const handleAddDept = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDeptName.trim()) return;
@@ -366,70 +443,100 @@ export function Settings() {
               {!selectedMajorId ? (
                 <div className="text-center text-slate-400 text-sm mt-10">请先选择左侧专业</div>
               ) : (
-                state.classes.filter(c => c.majorId === selectedMajorId).map(cls => (
-                  <div key={cls.id} className="p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
-                    {editingClassId === cls.id ? (
-                      <div className="space-y-3 text-sm">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">班级名称</label>
-                            <input type="text" value={classForm.name || ''} onChange={e => setClassForm({...classForm, name: e.target.value})} className="w-full px-2 py-1 border rounded" />
+                <>
+                  {state.classes.filter(c => c.majorId === selectedMajorId).length > 0 && (
+                    <div className="flex justify-between items-center px-2 py-1 bg-slate-100 rounded text-sm mb-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={
+                          state.classes.filter(c => c.majorId === selectedMajorId).length > 0 &&
+                          state.classes.filter(c => c.majorId === selectedMajorId).every(c => selectedClasses.has(c.id))
+                        } onChange={(e) => {
+                          const filtered = state.classes.filter(c => c.majorId === selectedMajorId);
+                          if (e.target.checked) {
+                            const newSet = new Set(selectedClasses);
+                            filtered.forEach(c => newSet.add(c.id));
+                            setSelectedClasses(newSet);
+                          } else {
+                            const newSet = new Set(selectedClasses);
+                            filtered.forEach(c => newSet.delete(c.id));
+                            setSelectedClasses(newSet);
+                          }
+                        }} />
+                        <span className="text-slate-600">全选本专业</span>
+                      </label>
+                      {selectedClasses.size > 0 && (
+                        <button onClick={handleBatchDeleteClasses} className="text-rose-600 hover:text-rose-700 font-medium text-xs bg-rose-50 px-2 py-1 rounded border border-rose-200">批量删除 ({selectedClasses.size})</button>
+                      )}
+                    </div>
+                  )}
+                  {state.classes.filter(c => c.majorId === selectedMajorId).map(cls => (
+                    <div key={cls.id} className="p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+                      {editingClassId === cls.id ? (
+                        <div className="space-y-3 text-sm">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">班级名称</label>
+                              <input type="text" value={classForm.name || ''} onChange={e => setClassForm({...classForm, name: e.target.value})} className="w-full px-2 py-1 border rounded" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">年级</label>
+                              <select value={classForm.gradeId || ''} onChange={e => setClassForm({...classForm, gradeId: e.target.value})} className="w-full px-2 py-1 border rounded">
+                                {state.grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">类别</label>
+                              <select value={classForm.type || ''} onChange={e => setClassForm({...classForm, type: e.target.value})} className="w-full px-2 py-1 border rounded">
+                                {state.classCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">教室</label>
+                              <input type="text" value={classForm.classroom || ''} onChange={e => setClassForm({...classForm, classroom: e.target.value})} className="w-full px-2 py-1 border rounded" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">人数</label>
+                              <input type="number" value={classForm.studentCount || 0} onChange={e => setClassForm({...classForm, studentCount: parseInt(e.target.value)})} className="w-full px-2 py-1 border rounded" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">班主任</label>
+                              <SearchableTeacherSelect
+                                value={classForm.headTeacherId || ''}
+                                onChange={val => setClassForm({...classForm, headTeacherId: val})}
+                                teachers={state.teachers}
+                                placeholder="无"
+                              />
+                            </div>
                           </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">年级</label>
-                            <select value={classForm.gradeId || ''} onChange={e => setClassForm({...classForm, gradeId: e.target.value})} className="w-full px-2 py-1 border rounded">
-                              {state.grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">类别</label>
-                            <select value={classForm.type || ''} onChange={e => setClassForm({...classForm, type: e.target.value})} className="w-full px-2 py-1 border rounded">
-                              {state.classCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">教室</label>
-                            <input type="text" value={classForm.classroom || ''} onChange={e => setClassForm({...classForm, classroom: e.target.value})} className="w-full px-2 py-1 border rounded" />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">人数</label>
-                            <input type="number" value={classForm.studentCount || 0} onChange={e => setClassForm({...classForm, studentCount: parseInt(e.target.value)})} className="w-full px-2 py-1 border rounded" />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">班主任</label>
-                            <SearchableTeacherSelect
-                              value={classForm.headTeacherId || ''}
-                              onChange={val => setClassForm({...classForm, headTeacherId: val})}
-                              teachers={state.teachers}
-                              placeholder="无"
-                            />
+                          <div className="flex justify-end gap-2 mt-2">
+                            <button onClick={() => setEditingClassId(null)} className="px-3 py-1 text-slate-500 hover:bg-slate-100 rounded">取消</button>
+                            <button onClick={() => saveClass(cls)} className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">保存</button>
                           </div>
                         </div>
-                        <div className="flex justify-end gap-2 mt-2">
-                          <button onClick={() => setEditingClassId(null)} className="px-3 py-1 text-slate-500 hover:bg-slate-100 rounded">取消</button>
-                          <button onClick={() => saveClass(cls)} className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">保存</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-bold text-slate-800">{cls.name}</h4>
-                          <div className="flex gap-1">
-                            <button onClick={() => startEditClass(cls)} className="p-1 text-slate-400 hover:text-indigo-600"><Edit2 className="w-4 h-4" /></button>
-                            <button onClick={() => deleteClass(cls.id)} className="p-1 text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
+                      ) : (
+                        <>
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                              <input type="checkbox" checked={selectedClasses.has(cls.id)} onChange={() => toggleClassSelection(cls.id)} className="cursor-pointer" />
+                              <h4 className="font-bold text-slate-800">{cls.name}</h4>
+                            </div>
+                            <div className="flex gap-1">
+                              <button onClick={() => startEditClass(cls)} className="p-1 text-slate-400 hover:text-indigo-600"><Edit2 className="w-4 h-4" /></button>
+                              <button onClick={() => deleteClass(cls.id)} className="p-1 text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
+                            </div>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-y-1 text-xs text-slate-600">
-                          <div><span className="text-slate-400">类别:</span> {cls.type}</div>
-                          <div><span className="text-slate-400">年级:</span> {state.grades.find(g => g.id === cls.gradeId)?.name}</div>
-                          <div><span className="text-slate-400">教室:</span> {cls.classroom || '-'}</div>
-                          <div><span className="text-slate-400">人数:</span> {cls.studentCount}</div>
-                          <div className="col-span-2"><span className="text-slate-400">班主任:</span> {state.teachers.find(t => t.id === cls.headTeacherId)?.name || '-'}</div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))
+                          <div className="grid grid-cols-2 gap-y-1 text-xs text-slate-600 pl-5">
+                            <div><span className="text-slate-400">类别:</span> {cls.type}</div>
+                            <div><span className="text-slate-400">年级:</span> {state.grades.find(g => g.id === cls.gradeId)?.name}</div>
+                            <div><span className="text-slate-400">教室:</span> {cls.classroom || '-'}</div>
+                            <div><span className="text-slate-400">人数:</span> {cls.studentCount}</div>
+                            <div className="col-span-2"><span className="text-slate-400">班主任:</span> {state.teachers.find(t => t.id === cls.headTeacherId)?.name || '-'}</div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </>
               )}
             </div>
           </div>
@@ -488,14 +595,31 @@ export function Settings() {
             </div>
             <div className="flex-1 overflow-auto p-4">
               <div className="space-y-2">
+                {state.teachers.length > 0 && (
+                  <div className="flex justify-between items-center px-2 py-1 bg-slate-100 rounded text-sm mb-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={selectedTeachers.size === state.teachers.length && state.teachers.length > 0} onChange={(e) => {
+                        if (e.target.checked) setSelectedTeachers(new Set(state.teachers.map(t => t.id)));
+                        else setSelectedTeachers(new Set());
+                      }} />
+                      <span className="text-slate-600">全选</span>
+                    </label>
+                    {selectedTeachers.size > 0 && (
+                      <button onClick={handleBatchDeleteTeachers} className="text-rose-600 hover:text-rose-700 font-medium text-xs bg-rose-50 px-2 py-1 rounded border border-rose-200">批量删除 ({selectedTeachers.size})</button>
+                    )}
+                  </div>
+                )}
                 {state.teachers.map(t => (
                   <div key={t.id} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm">
-                    <div className="flex flex-col">
-                      <span className="font-medium">{t.name} {t.gender && `(${t.gender})`}</span>
-                      <div className="text-xs text-slate-500 flex gap-2 mt-0.5">
-                        {t.idCard && <span>身份证: {t.idCard}</span>}
-                        {t.department && <span>产业部: {t.department}</span>}
-                        {t.primarySubject && <span>学科: {t.primarySubject}</span>}
+                    <div className="flex items-center gap-3">
+                      <input type="checkbox" checked={selectedTeachers.has(t.id)} onChange={() => toggleTeacherSelection(t.id)} className="cursor-pointer" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{t.name} {t.gender && `(${t.gender})`}</span>
+                        <div className="text-xs text-slate-500 flex gap-2 mt-0.5">
+                          {t.idCard && <span>身份证: {t.idCard}</span>}
+                          {t.department && <span>产业部: {t.department}</span>}
+                          {t.primarySubject && <span>学科: {t.primarySubject}</span>}
+                        </div>
                       </div>
                     </div>
                     <button onClick={() => deleteTeacher(t.id)} className="text-slate-400 hover:text-rose-600 ml-1"><Trash2 className="w-4 h-4" /></button>
@@ -557,17 +681,32 @@ export function Settings() {
             </div>
             <div className="flex-1 overflow-auto p-4">
               <div className="space-y-2">
+                {state.subjects.length > 0 && (
+                  <div className="flex justify-between items-center px-2 py-1 bg-slate-100 rounded text-sm mb-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={selectedSubjects.size === state.subjects.length && state.subjects.length > 0} onChange={(e) => {
+                        if (e.target.checked) setSelectedSubjects(new Set(state.subjects.map(s => s.id)));
+                        else setSelectedSubjects(new Set());
+                      }} />
+                      <span className="text-slate-600">全选</span>
+                    </label>
+                    {selectedSubjects.size > 0 && (
+                      <button onClick={handleBatchDeleteSubjects} className="text-rose-600 hover:text-rose-700 font-medium text-xs bg-rose-50 px-2 py-1 rounded border border-rose-200">批量删除 ({selectedSubjects.size})</button>
+                    )}
+                  </div>
+                )}
                 {state.subjects.map(s => (
                   <div key={s.id} className="flex flex-col bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm gap-1">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
+                        <input type="checkbox" checked={selectedSubjects.has(s.id)} onChange={() => toggleSubjectSelection(s.id)} className="cursor-pointer" />
                         <span className="font-medium">{s.name}</span>
                         <span className={`text-xs px-2 py-0.5 rounded-full ${s.type === '公共课' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{s.type}</span>
                       </div>
                       <button onClick={() => deleteSubject(s.id)} className="text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
                     </div>
                     {s.type === '专业课' && s.departmentId && (
-                      <div className="text-xs text-slate-500 flex gap-2">
+                      <div className="text-xs text-slate-500 flex gap-2 ml-5">
                         <span>产业部: {state.departments.find(d => d.id === s.departmentId)?.name || '未知'}</span>
                         {s.majorId && <span>专业: {state.majors.find(m => m.id === s.majorId)?.name || '未知'}</span>}
                       </div>
@@ -625,6 +764,16 @@ export function Settings() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        type="danger"
+        confirmText="确认删除"
+      />
     </div>
   );
 }
