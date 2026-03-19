@@ -34,6 +34,8 @@ export function Settings() {
   
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectType, setNewSubjectType] = useState<'公共课' | '专业课'>('公共课');
+  const [newSubjectDepartmentId, setNewSubjectDepartmentId] = useState('');
+  const [newSubjectMajorId, setNewSubjectMajorId] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newGradeName, setNewGradeName] = useState('');
 
@@ -204,9 +206,29 @@ export function Settings() {
       const subjectsToAdd = data.map((row: any) => {
         let type = row['类型'] || row['type'] || '公共课';
         if (type !== '公共课' && type !== '专业课') type = '公共课';
+        
+        const deptName = row['所属产业部'] || row['department'] || '';
+        const majorName = row['所属专业'] || row['major'] || '';
+        
+        let departmentId = undefined;
+        let majorId = undefined;
+        
+        if (type === '专业课') {
+          if (deptName) {
+            const dept = state.departments.find(d => d.name === deptName);
+            if (dept) departmentId = dept.id;
+          }
+          if (majorName) {
+            const major = state.majors.find(m => m.name === majorName);
+            if (major) majorId = major.id;
+          }
+        }
+        
         return {
           name: row['名称'] || row['name'] || '',
-          type: type as '公共课' | '专业课'
+          type: type as '公共课' | '专业课',
+          departmentId,
+          majorId
         };
       }).filter(s => s.name);
 
@@ -219,10 +241,20 @@ export function Settings() {
   };
 
   const downloadSubjectTemplate = () => {
-    const ws = xlsx.utils.json_to_sheet([{
-      '名称': '高等数学',
-      '类型': '公共课'
-    }]);
+    const ws = xlsx.utils.json_to_sheet([
+      {
+        '名称': '高等数学',
+        '类型': '公共课',
+        '所属产业部': '',
+        '所属专业': ''
+      },
+      {
+        '名称': 'C语言程序设计',
+        '类型': '专业课',
+        '所属产业部': '信息技术产业部',
+        '所属专业': '计算机应用'
+      }
+    ]);
     const wb = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(wb, ws, '科目导入模板');
     xlsx.writeFile(wb, '科目导入模板.xlsx');
@@ -490,7 +522,13 @@ export function Settings() {
                   </label>
                 </div>
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); if(newSubjectName.trim()) { addSubject(newSubjectName.trim(), newSubjectType); setNewSubjectName(''); } }} className="mt-3 flex flex-col gap-2">
+              <form onSubmit={(e) => { 
+                e.preventDefault(); 
+                if(newSubjectName.trim()) { 
+                  addSubject(newSubjectName.trim(), newSubjectType, newSubjectType === '专业课' ? newSubjectDepartmentId : undefined, newSubjectType === '专业课' ? newSubjectMajorId : undefined); 
+                  setNewSubjectName(''); 
+                } 
+              }} className="mt-3 flex flex-col gap-2">
                 <div className="flex gap-2">
                   <input type="text" value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)} placeholder="新科目名称..." className="flex-1 px-3 py-1.5 border border-slate-300 rounded-md text-sm" />
                   <select value={newSubjectType} onChange={(e) => setNewSubjectType(e.target.value as any)} className="px-2 border border-slate-300 rounded-md text-sm">
@@ -498,18 +536,42 @@ export function Settings() {
                     <option value="专业课">专业课</option>
                   </select>
                 </div>
-                <button type="submit" disabled={!newSubjectName.trim()} className="w-full bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700 disabled:opacity-50 text-sm flex items-center justify-center gap-1"><Plus className="w-4 h-4" /> 添加科目</button>
+                {newSubjectType === '专业课' && (
+                  <div className="flex gap-2">
+                    <select value={newSubjectDepartmentId} onChange={(e) => { setNewSubjectDepartmentId(e.target.value); setNewSubjectMajorId(''); }} className="flex-1 px-2 py-1.5 border border-slate-300 rounded-md text-sm">
+                      <option value="">选择产业部...</option>
+                      {state.departments.map(d => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                    <select value={newSubjectMajorId} onChange={(e) => setNewSubjectMajorId(e.target.value)} className="flex-1 px-2 py-1.5 border border-slate-300 rounded-md text-sm" disabled={!newSubjectDepartmentId}>
+                      <option value="">选择专业(可选)...</option>
+                      {state.majors.filter(m => m.departmentId === newSubjectDepartmentId).map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <button type="submit" disabled={!newSubjectName.trim() || (newSubjectType === '专业课' && !newSubjectDepartmentId)} className="w-full bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700 disabled:opacity-50 text-sm flex items-center justify-center gap-1"><Plus className="w-4 h-4" /> 添加科目</button>
               </form>
             </div>
             <div className="flex-1 overflow-auto p-4">
               <div className="space-y-2">
                 {state.subjects.map(s => (
-                  <div key={s.id} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{s.name}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${s.type === '公共课' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{s.type}</span>
+                  <div key={s.id} className="flex flex-col bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm gap-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{s.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${s.type === '公共课' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{s.type}</span>
+                      </div>
+                      <button onClick={() => deleteSubject(s.id)} className="text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
                     </div>
-                    <button onClick={() => deleteSubject(s.id)} className="text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
+                    {s.type === '专业课' && s.departmentId && (
+                      <div className="text-xs text-slate-500 flex gap-2">
+                        <span>产业部: {state.departments.find(d => d.id === s.departmentId)?.name || '未知'}</span>
+                        {s.majorId && <span>专业: {state.majors.find(m => m.id === s.majorId)?.name || '未知'}</span>}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

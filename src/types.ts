@@ -27,6 +27,8 @@ export interface Subject {
   id: string;
   name: string;
   type: '公共课' | '专业课';
+  departmentId?: string;
+  majorId?: string;
 }
 
 export interface ClassCategory {

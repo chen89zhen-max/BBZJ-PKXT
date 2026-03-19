@@ -6,7 +6,7 @@ import { SearchableTeacherSelect } from './SearchableTeacherSelect';
 export function MatrixSchedule({ department }: { department: Department }) {
   const { state, updateSchedule } = useAppContext();
   
-  const [selectedGradeId, setSelectedGradeId] = useState<string>(state.grades[0]?.id || '');
+  const [selectedGradeId, setSelectedGradeId] = useState<string>('all');
   const [selectedMajorId, setSelectedMajorId] = useState<string>('all');
 
   // Filter majors for this department
@@ -17,10 +17,18 @@ export function MatrixSchedule({ department }: { department: Department }) {
   const classes = useMemo(() => {
     return state.classes.filter(c => 
       deptMajorIds.has(c.majorId) && 
-      c.gradeId === selectedGradeId &&
+      (selectedGradeId === 'all' || c.gradeId === selectedGradeId) &&
       (selectedMajorId === 'all' || c.majorId === selectedMajorId)
     );
   }, [state.classes, deptMajorIds, selectedGradeId, selectedMajorId]);
+
+  // Filter subjects: public courses + professional courses for this department
+  const filteredSubjects = useMemo(() => {
+    return state.subjects.filter(s => 
+      s.type === '公共课' || 
+      (s.type === '专业课' && (!s.departmentId || s.departmentId === department.id))
+    );
+  }, [state.subjects, department.id]);
 
   // Handle cell updates
   const handleCellChange = (classId: string, subjectId: string, field: 'teacherId' | 'hours', value: string | number) => {
@@ -39,7 +47,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
     updateSchedule(classId, subjectId, teacherId, hours);
   };
 
-  if (!selectedGradeId) {
+  if (state.grades.length === 0) {
     return <div>请先添加年级数据</div>;
   }
 
@@ -59,6 +67,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
             onChange={e => setSelectedGradeId(e.target.value)}
             className="border-none bg-slate-50 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
           >
+            <option value="all">全部年级</option>
             {state.grades.map(g => (
               <option key={g.id} value={g.id}>{g.name}</option>
             ))}
@@ -151,7 +160,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
                 </tr>
               </thead>
               <tbody className="bg-white">
-                {state.subjects.map((subject, index) => {
+                {filteredSubjects.map((subject, index) => {
                   // Calculate total hours for this subject across currently shown classes
                   const totalHours = classes.reduce((sum, c) => {
                     const sch = state.schedules.find(s => s.classId === c.id && s.subjectId === subject.id);

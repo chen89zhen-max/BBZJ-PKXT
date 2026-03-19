@@ -30,8 +30,9 @@ interface AppContextType {
   deleteTeacher: (id: string) => void;
   
   // Subjects
-  addSubject: (name: string, type: '公共课' | '专业课') => void;
+  addSubject: (name: string, type: '公共课' | '专业课', departmentId?: string, majorId?: string) => void;
   addSubjects: (subjects: Omit<Subject, 'id'>[]) => void;
+  deleteSubject: (id: string) => void;
   
   // Class Categories
   addClassCategory: (name: string) => void;
@@ -191,8 +192,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // Subjects
-  const addSubject = (name: string, type: '公共课' | '专业课') => {
-    broadcastState({ ...state, subjects: [...state.subjects, { id: uuidv4(), name, type }] });
+  const addSubject = (name: string, type: '公共课' | '专业课', departmentId?: string, majorId?: string) => {
+    broadcastState({ ...state, subjects: [...state.subjects, { id: uuidv4(), name, type, departmentId, majorId }] });
   };
   const addSubjects = (newSubjects: Omit<Subject, 'id'>[]) => {
     const subjectsToAdd = newSubjects.map(s => ({ ...s, id: uuidv4() }));
