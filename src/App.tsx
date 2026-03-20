@@ -3,7 +3,7 @@ import { AppProvider, useAppContext } from './context';
 import { MatrixSchedule } from './components/MatrixSchedule';
 import { TeacherWorkload } from './components/TeacherWorkload';
 import { Settings } from './components/Settings';
-import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
+import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle, Menu, ChevronLeft } from 'lucide-react';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -63,6 +63,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 function MainContent() {
   const { state, connected } = useAppContext();
   const [activeTab, setActiveTab] = useState('dept-1'); // Default to first dept if exists
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Ensure activeTab is valid
   const currentDept = state.departments.find(d => d.id === activeTab) || state.departments[0];
@@ -72,6 +73,13 @@ function MainContent() {
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
+            title={isSidebarOpen ? "收起侧边栏" : "展开侧边栏"}
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <div className="bg-indigo-600 p-2 rounded-lg">
             <LayoutDashboard className="w-5 h-5 text-white" />
           </div>
@@ -94,8 +102,12 @@ function MainContent() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-full">
-          <div className="p-4 flex-1 overflow-y-auto">
+        <aside
+          className={`bg-white border-r border-slate-200 flex flex-col h-full transition-all duration-300 ease-in-out ${
+            isSidebarOpen ? 'w-64 opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-full overflow-hidden'
+          }`}
+        >
+          <div className="p-4 flex-1 overflow-y-auto min-w-[16rem]">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">专业部排课</h2>
             <nav className="space-y-1">
               {state.departments.map((dept) => (

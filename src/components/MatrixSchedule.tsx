@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context';
 import { Department, Grade, Major, Class, Subject, Teacher } from '../types';
 import { SearchableTeacherSelect } from './SearchableTeacherSelect';
-import { Download, Trash2 } from 'lucide-react';
+import { Download, Trash2, Maximize, Minimize } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { ConfirmModal } from './ConfirmModal';
 import { PromptModal } from './PromptModal';
@@ -16,6 +16,18 @@ export function MatrixSchedule({ department }: { department: Department }) {
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [showConfirmClear, setShowConfirmClear] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{title: string, message: string, type: 'danger' | 'warning' | 'info'} | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
   // Filter majors for this department
   const deptMajors = useMemo(() => state.majors.filter(m => m.departmentId === department.id), [state.majors, department.id]);
@@ -32,11 +44,31 @@ export function MatrixSchedule({ department }: { department: Department }) {
 
   // Filter subjects: public courses + professional courses for this department
   const filteredSubjects = useMemo(() => {
-    return state.subjects.filter(s => 
-      s.type === '公共课' || 
-      (s.type === '专业课' && (!s.departmentId || s.departmentId === department.id))
-    );
-  }, [state.subjects, department.id]);
+    return state.subjects.filter(s => {
+      // 城南工作部（综合高中）只显示综合高中课程
+      if (department.name === '城南工作部（综合高中）') {
+        return ['综合高中文化课', '综合高中技能课'].includes(s.type);
+      }
+      
+      // 城南工作部（中职）不显示综合高中课程
+      if (department.name === '城南工作部（中职）') {
+        if (['综合高中文化课', '综合高中技能课'].includes(s.type)) return false;
+      } else {
+        // 其他部门，如果包含“综合高中”则显示综合高中课程，否则不显示
+        if (['综合高中文化课', '综合高中技能课'].includes(s.type)) {
+          return department.name.includes('综合高中');
+        }
+      }
+      
+      // 中职专业课 需要匹配部门
+      if (s.type === '中职专业课') {
+        return !s.departmentId || s.departmentId === department.id;
+      }
+      
+      // 中职公共基础课 默认全显示
+      return true;
+    });
+  }, [state.subjects, department.id, department.name]);
 
   // Handle cell updates
   const handleCellChange = (classId: string, subjectId: string, field: 'teacherId' | 'hours', value: string | number) => {
@@ -199,7 +231,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${isFullscreen ? 'fixed inset-0 z-50 bg-slate-50 p-6 overflow-auto' : ''}`}>
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">{department.name} - 排课矩阵</h2>
@@ -209,6 +241,14 @@ export function MatrixSchedule({ department }: { department: Department }) {
         <div className="flex items-center gap-4">
           {/* Actions */}
           <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-slate-50 text-slate-700 border border-slate-200 rounded-md hover:bg-slate-100 transition-colors text-sm font-medium"
+              title={isFullscreen ? "退出全屏 (ESC)" : "全屏排课"}
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+              {isFullscreen ? '退出全屏' : '全屏排课'}
+            </button>
             <button 
               onClick={handleExportExcel}
               className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors text-sm font-medium"

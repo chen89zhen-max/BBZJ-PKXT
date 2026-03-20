@@ -23,10 +23,12 @@ export interface Teacher {
   idCard?: string;
 }
 
+export type SubjectType = '中职公共基础课' | '中职专业课' | '综合高中文化课' | '综合高中技能课';
+
 export interface Subject {
   id: string;
   name: string;
-  type: '公共课' | '专业课';
+  type: SubjectType;
   departmentId?: string;
   majorId?: string;
 }

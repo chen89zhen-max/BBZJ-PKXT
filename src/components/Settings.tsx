@@ -1,17 +1,18 @@
 import React, { useState, useRef } from 'react';
 import { useAppContext } from '../context';
 import { Plus, Building2, UserCircle, BookOpen, Tags, Trash2, Edit2, Save, X, GraduationCap, Users, Upload, Download } from 'lucide-react';
-import { Class } from '../types';
+import { Class, SubjectType } from '../types';
 import * as xlsx from 'xlsx';
 import { SearchableTeacherSelect } from './SearchableTeacherSelect';
 import { ConfirmModal } from './ConfirmModal';
+import { PromptModal } from './PromptModal';
 
 export function Settings() {
   const { 
     state, 
-    addDepartment, deleteDepartment,
-    addMajor, deleteMajor,
-    addClass, updateClass, deleteClass, deleteClasses, importClasses,
+    addDepartment, updateDepartment, deleteDepartment,
+    addMajor, updateMajor, deleteMajor,
+    addClass, updateClass, deleteClass, deleteClasses, clearClasses, importClasses,
     addTeacher, addTeachers, deleteTeacher, deleteTeachers,
     addSubject, addSubjects, deleteSubject, deleteSubjects,
     addClassCategory, deleteClassCategory,
@@ -34,7 +35,7 @@ export function Settings() {
   const [newTeacherPrimarySubject, setNewTeacherPrimarySubject] = useState('');
   
   const [newSubjectName, setNewSubjectName] = useState('');
-  const [newSubjectType, setNewSubjectType] = useState<'公共课' | '专业课'>('公共课');
+  const [newSubjectType, setNewSubjectType] = useState<SubjectType>('中职公共基础课');
   const [newSubjectDepartmentId, setNewSubjectDepartmentId] = useState('');
   const [newSubjectMajorId, setNewSubjectMajorId] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -62,6 +63,14 @@ export function Settings() {
   // Class Edit State
   const [editingClassId, setEditingClassId] = useState<string | null>(null);
   const [classForm, setClassForm] = useState<Partial<Class>>({});
+
+  // Dept/Major Edit State
+  const [editingDeptId, setEditingDeptId] = useState<string | null>(null);
+  const [editDeptName, setEditDeptName] = useState('');
+  const [editingMajorId, setEditingMajorId] = useState<string | null>(null);
+  const [editMajorName, setEditMajorName] = useState('');
+
+  const [showClearClassesPrompt, setShowClearClassesPrompt] = useState(false);
 
   // Handlers
   const toggleTeacherSelection = (id: string) => {
@@ -292,9 +301,13 @@ export function Settings() {
       const ws = wb.Sheets[wsname];
       const data = xlsx.utils.sheet_to_json(ws);
       
+      const validTypes = ['中职公共基础课', '中职专业课', '综合高中文化课', '综合高中技能课'];
+      
       const subjectsToAdd = data.map((row: any) => {
-        let type = row['类型'] || row['type'] || '公共课';
-        if (type !== '公共课' && type !== '专业课') type = '公共课';
+        let type = row['类型'] || row['type'] || '中职公共基础课';
+        if (!validTypes.includes(type)) type = '中职公共基础课';
+        
+        const isProfessional = type === '中职专业课';
         
         const deptName = row['所属产业部'] || row['department'] || '';
         const majorName = row['所属专业'] || row['major'] || '';
@@ -302,7 +315,7 @@ export function Settings() {
         let departmentId = undefined;
         let majorId = undefined;
         
-        if (type === '专业课') {
+        if (isProfessional) {
           if (deptName) {
             const dept = state.departments.find(d => d.name === deptName);
             if (dept) departmentId = dept.id;
@@ -315,7 +328,7 @@ export function Settings() {
         
         return {
           name: row['名称'] || row['name'] || '',
-          type: type as '公共课' | '专业课',
+          type: type as SubjectType,
           departmentId,
           majorId
         };
@@ -333,13 +346,13 @@ export function Settings() {
     const ws = xlsx.utils.json_to_sheet([
       {
         '名称': '高等数学',
-        '类型': '公共课',
+        '类型': '中职公共基础课',
         '所属产业部': '',
         '所属专业': ''
       },
       {
         '名称': 'C语言程序设计',
-        '类型': '专业课',
+        '类型': '中职专业课',
         '所属产业部': '信息技术产业部',
         '所属专业': '计算机应用'
       }
@@ -392,8 +405,32 @@ export function Settings() {
                   onClick={() => { setSelectedDeptId(dept.id); setSelectedMajorId(''); }}
                   className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${selectedDeptId === dept.id ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-slate-50 border border-transparent'}`}
                 >
-                  <span className="font-medium text-slate-700 text-sm">{dept.name}</span>
-                  <button onClick={(e) => { e.stopPropagation(); deleteDepartment(dept.id); }} className="text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
+                  {editingDeptId === dept.id ? (
+                    <div className="flex items-center gap-2 w-full" onClick={e => e.stopPropagation()}>
+                      <input 
+                        type="text" 
+                        value={editDeptName} 
+                        onChange={e => setEditDeptName(e.target.value)} 
+                        className="flex-1 px-2 py-1 border border-slate-300 rounded text-sm"
+                        autoFocus
+                      />
+                      <button onClick={() => {
+                        if (editDeptName.trim()) {
+                          updateDepartment(dept.id, editDeptName.trim());
+                        }
+                        setEditingDeptId(null);
+                      }} className="text-emerald-600 hover:text-emerald-700"><Save className="w-4 h-4" /></button>
+                      <button onClick={() => setEditingDeptId(null)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="font-medium text-slate-700 text-sm">{dept.name}</span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={(e) => { e.stopPropagation(); setEditingDeptId(dept.id); setEditDeptName(dept.name); }} className="text-slate-400 hover:text-indigo-600"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={(e) => { e.stopPropagation(); deleteDepartment(dept.id); }} className="text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -420,8 +457,32 @@ export function Settings() {
                     onClick={() => setSelectedMajorId(major.id)}
                     className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${selectedMajorId === major.id ? 'bg-emerald-50 border border-emerald-200' : 'hover:bg-slate-50 border border-transparent'}`}
                   >
-                    <span className="font-medium text-slate-700 text-sm">{major.name}</span>
-                    <button onClick={(e) => { e.stopPropagation(); deleteMajor(major.id); }} className="text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
+                    {editingMajorId === major.id ? (
+                      <div className="flex items-center gap-2 w-full" onClick={e => e.stopPropagation()}>
+                        <input 
+                          type="text" 
+                          value={editMajorName} 
+                          onChange={e => setEditMajorName(e.target.value)} 
+                          className="flex-1 px-2 py-1 border border-slate-300 rounded text-sm"
+                          autoFocus
+                        />
+                        <button onClick={() => {
+                          if (editMajorName.trim()) {
+                            updateMajor(major.id, editMajorName.trim());
+                          }
+                          setEditingMajorId(null);
+                        }} className="text-emerald-600 hover:text-emerald-700"><Save className="w-4 h-4" /></button>
+                        <button onClick={() => setEditingMajorId(null)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-medium text-slate-700 text-sm">{major.name}</span>
+                        <div className="flex items-center gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); setEditingMajorId(major.id); setEditMajorName(major.name); }} className="text-slate-400 hover:text-emerald-600"><Edit2 className="w-4 h-4" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); deleteMajor(major.id); }} className="text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))
               )}
@@ -445,7 +506,13 @@ export function Settings() {
                   </label>
                 </div>
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-between items-center">
+                <button 
+                  onClick={() => setShowClearClassesPrompt(true)} 
+                  className="bg-rose-100 text-rose-600 px-3 py-1.5 rounded-md hover:bg-rose-200 text-sm flex items-center gap-1"
+                >
+                  <Trash2 className="w-4 h-4" /> 一键清除全校班级
+                </button>
                 <button onClick={handleAddClass} disabled={!selectedMajorId} className="bg-amber-600 text-white px-3 py-1.5 rounded-md hover:bg-amber-700 disabled:opacity-50 text-sm flex items-center gap-1">
                   <Plus className="w-4 h-4" /> 添加班级
                 </button>
@@ -661,18 +728,21 @@ export function Settings() {
               <form onSubmit={(e) => { 
                 e.preventDefault(); 
                 if(newSubjectName.trim()) { 
-                  addSubject(newSubjectName.trim(), newSubjectType, newSubjectType === '专业课' ? newSubjectDepartmentId : undefined, newSubjectType === '专业课' ? newSubjectMajorId : undefined); 
+                  const isProfessional = newSubjectType === '中职专业课';
+                  addSubject(newSubjectName.trim(), newSubjectType, isProfessional ? newSubjectDepartmentId : undefined, isProfessional ? newSubjectMajorId : undefined); 
                   setNewSubjectName(''); 
                 } 
               }} className="mt-3 flex flex-col gap-2">
                 <div className="flex gap-2">
                   <input type="text" value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)} placeholder="新科目名称..." className="flex-1 px-3 py-1.5 border border-slate-300 rounded-md text-sm" />
-                  <select value={newSubjectType} onChange={(e) => setNewSubjectType(e.target.value as any)} className="px-2 border border-slate-300 rounded-md text-sm">
-                    <option value="公共课">公共课</option>
-                    <option value="专业课">专业课</option>
+                  <select value={newSubjectType} onChange={(e) => setNewSubjectType(e.target.value as SubjectType)} className="px-2 border border-slate-300 rounded-md text-sm">
+                    <option value="中职公共基础课">中职公共基础课</option>
+                    <option value="中职专业课">中职专业课</option>
+                    <option value="综合高中文化课">综合高中文化课</option>
+                    <option value="综合高中技能课">综合高中技能课</option>
                   </select>
                 </div>
-                {newSubjectType === '专业课' && (
+                {newSubjectType === '中职专业课' && (
                   <div className="flex gap-2">
                     <select value={newSubjectDepartmentId} onChange={(e) => { setNewSubjectDepartmentId(e.target.value); setNewSubjectMajorId(''); }} className="flex-1 px-2 py-1.5 border border-slate-300 rounded-md text-sm">
                       <option value="">选择产业部...</option>
@@ -688,7 +758,7 @@ export function Settings() {
                     </select>
                   </div>
                 )}
-                <button type="submit" disabled={!newSubjectName.trim() || (newSubjectType === '专业课' && !newSubjectDepartmentId)} className="w-full bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700 disabled:opacity-50 text-sm flex items-center justify-center gap-1"><Plus className="w-4 h-4" /> 添加科目</button>
+                <button type="submit" disabled={!newSubjectName.trim() || (newSubjectType === '中职专业课' && !newSubjectDepartmentId)} className="w-full bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700 disabled:opacity-50 text-sm flex items-center justify-center gap-1"><Plus className="w-4 h-4" /> 添加科目</button>
               </form>
             </div>
             <div className="flex-1 overflow-auto p-4">
@@ -707,24 +777,26 @@ export function Settings() {
                     )}
                   </div>
                 )}
-                {state.subjects.map(s => (
+                {state.subjects.map(s => {
+                  const isProfessional = s.type === '中职专业课';
+                  return (
                   <div key={s.id} className="flex flex-col bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm gap-1">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <input type="checkbox" checked={selectedSubjects.has(s.id)} onChange={() => toggleSubjectSelection(s.id)} className="cursor-pointer" />
                         <span className="font-medium">{s.name}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${s.type === '公共课' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{s.type}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${s.type === '中职专业课' ? 'bg-orange-100 text-orange-700' : s.type.includes('综合高中') ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{s.type}</span>
                       </div>
                       <button onClick={() => deleteSubject(s.id)} className="text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
                     </div>
-                    {s.type === '专业课' && s.departmentId && (
+                    {isProfessional && s.departmentId && (
                       <div className="text-xs text-slate-500 flex gap-2 ml-5">
                         <span>产业部: {state.departments.find(d => d.id === s.departmentId)?.name || '未知'}</span>
                         {s.majorId && <span>专业: {state.majors.find(m => m.id === s.majorId)?.name || '未知'}</span>}
                       </div>
                     )}
                   </div>
-                ))}
+                )})}
               </div>
             </div>
           </div>
@@ -805,6 +877,32 @@ export function Settings() {
           </div>
         </div>
       )}
+
+      <PromptModal
+        isOpen={showClearClassesPrompt}
+        title="清除全校班级"
+        message="此操作将删除所有班级及其排课数据，且不可恢复。请输入超级管理员密码以确认："
+        isPassword={true}
+        onConfirm={(password) => {
+          if (password === 'Bbzj@1234') {
+            clearClasses();
+            setShowClearClassesPrompt(false);
+            setImportResultModal({
+              isOpen: true,
+              title: '操作成功',
+              message: '已成功清除全校所有班级数据。'
+            });
+          } else {
+            setShowClearClassesPrompt(false);
+            setImportResultModal({
+              isOpen: true,
+              title: '密码错误',
+              message: '您输入的超级管理员密码不正确，操作已取消。'
+            });
+          }
+        }}
+        onCancel={() => setShowClearClassesPrompt(false)}
+      />
     </div>
   );
 }

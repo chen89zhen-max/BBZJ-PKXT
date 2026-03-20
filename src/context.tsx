@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { AppState, Schedule, Department, Teacher, Major, Grade, Class, Subject, ClassCategory } from './types';
+import { AppState, Schedule, Department, Teacher, Major, Grade, Class, Subject, ClassCategory, SubjectType } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 interface AppContextType {
@@ -9,10 +9,12 @@ interface AppContextType {
   
   // Departments
   addDepartment: (name: string) => void;
+  updateDepartment: (id: string, name: string) => void;
   deleteDepartment: (id: string) => void;
   
   // Majors
   addMajor: (departmentId: string, name: string) => void;
+  updateMajor: (id: string, name: string) => void;
   deleteMajor: (id: string) => void;
   
   // Grades
@@ -24,6 +26,7 @@ interface AppContextType {
   updateClass: (cls: Class) => void;
   deleteClass: (id: string) => void;
   deleteClasses: (ids: string[]) => void;
+  clearClasses: () => void;
   importClasses: (classes: Omit<Class, 'id'>[]) => { added: number, updated: number, failed: number };
   
   // Teachers
@@ -33,7 +36,7 @@ interface AppContextType {
   deleteTeachers: (ids: string[]) => void;
   
   // Subjects
-  addSubject: (name: string, type: '公共课' | '专业课', departmentId?: string, majorId?: string) => void;
+  addSubject: (name: string, type: SubjectType, departmentId?: string, majorId?: string) => void;
   addSubjects: (subjects: Omit<Subject, 'id'>[]) => void;
   deleteSubject: (id: string) => void;
   deleteSubjects: (ids: string[]) => void;
@@ -130,6 +133,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addDepartment = (name: string) => {
     broadcastState({ ...state, departments: [...state.departments, { id: uuidv4(), name }] });
   };
+  const updateDepartment = (id: string, name: string) => {
+    broadcastState({ ...state, departments: state.departments.map(d => d.id === id ? { ...d, name } : d) });
+  };
   const deleteDepartment = (id: string) => {
     broadcastState({ ...state, departments: state.departments.filter(d => d.id !== id) });
   };
@@ -137,6 +143,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Majors
   const addMajor = (departmentId: string, name: string) => {
     broadcastState({ ...state, majors: [...state.majors, { id: uuidv4(), departmentId, name }] });
+  };
+  const updateMajor = (id: string, name: string) => {
+    broadcastState({ ...state, majors: state.majors.map(m => m.id === id ? { ...m, name } : m) });
   };
   const deleteMajor = (id: string) => {
     broadcastState({ ...state, majors: state.majors.filter(m => m.id !== id) });
@@ -163,6 +172,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteClasses = (ids: string[]) => {
     const idSet = new Set(ids);
     broadcastState({ ...state, classes: state.classes.filter(c => !idSet.has(c.id)) });
+  };
+  const clearClasses = () => {
+    broadcastState({ ...state, classes: [], schedules: [] });
   };
   const importClasses = (classesToAdd: Omit<Class, 'id'>[]) => {
     let added = 0;
@@ -249,7 +261,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // Subjects
-  const addSubject = (name: string, type: '公共课' | '专业课', departmentId?: string, majorId?: string) => {
+  const addSubject = (name: string, type: SubjectType, departmentId?: string, majorId?: string) => {
     broadcastState({ ...state, subjects: [...state.subjects, { id: uuidv4(), name, type, departmentId, majorId }] });
   };
   const addSubjects = (newSubjects: Omit<Subject, 'id'>[]) => {
@@ -278,8 +290,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         state,
         updateSchedule,
         addDepartment,
+        updateDepartment,
         deleteDepartment,
         addMajor,
+        updateMajor,
         deleteMajor,
         addGrade,
         deleteGrade,
@@ -287,6 +301,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateClass,
         deleteClass,
         deleteClasses,
+        clearClasses,
         importClasses,
         addTeacher,
         addTeachers,
