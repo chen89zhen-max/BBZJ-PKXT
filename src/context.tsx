@@ -24,6 +24,7 @@ interface AppContextType {
   updateClass: (cls: Class) => void;
   deleteClass: (id: string) => void;
   deleteClasses: (ids: string[]) => void;
+  importClasses: (classes: Omit<Class, 'id'>[]) => { added: number, updated: number, failed: number };
   
   // Teachers
   addTeacher: (teacher: Omit<Teacher, 'id'>) => void;
@@ -163,6 +164,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const idSet = new Set(ids);
     broadcastState({ ...state, classes: state.classes.filter(c => !idSet.has(c.id)) });
   };
+  const importClasses = (classesToAdd: Omit<Class, 'id'>[]) => {
+    let added = 0;
+    let updated = 0;
+    let failed = 0;
+    
+    const newClasses = [...state.classes];
+    
+    classesToAdd.forEach(cls => {
+      if (!cls.name || !cls.majorId || !cls.gradeId) {
+        failed++;
+        return;
+      }
+      
+      const existingIndex = newClasses.findIndex(c => c.name === cls.name && c.majorId === cls.majorId && c.gradeId === cls.gradeId);
+      if (existingIndex >= 0) {
+        newClasses[existingIndex] = { ...newClasses[existingIndex], ...cls };
+        updated++;
+      } else {
+        newClasses.push({ ...cls, id: uuidv4() });
+        added++;
+      }
+    });
+    
+    broadcastState({ ...state, classes: newClasses });
+    return { added, updated, failed };
+  };
 
   // Teachers
   const addTeacher = (teacher: Omit<Teacher, 'id'>) => {
@@ -260,6 +287,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateClass,
         deleteClass,
         deleteClasses,
+        importClasses,
         addTeacher,
         addTeachers,
         deleteTeacher,

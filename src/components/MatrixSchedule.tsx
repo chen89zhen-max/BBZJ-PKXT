@@ -94,24 +94,23 @@ export function MatrixSchedule({ department }: { department: Department }) {
     aoa.push(row1);
 
     // Row 2: 类别
-    const row2 = ['类别', '', ''];
+    const row2: any[] = ['类别', '', ''];
     classes.forEach(c => {
-      const category = state.classCategories.find(cat => cat.id === c.categoryId);
-      row2.push(category?.name || '');
+      row2.push(c.type || '');
       row2.push('');
     });
     aoa.push(row2);
 
     // Row 3: 教室
-    const row3 = ['教室', '', ''];
+    const row3: any[] = ['教室', '', ''];
     classes.forEach(c => {
-      row3.push(c.room || '');
+      row3.push(c.classroom || '');
       row3.push('');
     });
     aoa.push(row3);
 
     // Row 4: 人数
-    const row4 = ['人数', '', ''];
+    const row4: any[] = ['人数', '', ''];
     classes.forEach(c => {
       row4.push(c.studentCount || 0);
       row4.push('');

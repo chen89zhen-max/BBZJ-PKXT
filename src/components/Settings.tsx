@@ -11,7 +11,7 @@ export function Settings() {
     state, 
     addDepartment, deleteDepartment,
     addMajor, deleteMajor,
-    addClass, updateClass, deleteClass, deleteClasses,
+    addClass, updateClass, deleteClass, deleteClasses, importClasses,
     addTeacher, addTeachers, deleteTeacher, deleteTeachers,
     addSubject, addSubjects, deleteSubject, deleteSubjects,
     addClassCategory, deleteClassCategory,
@@ -52,6 +52,12 @@ export function Settings() {
     message: string;
     onConfirm: () => void;
   }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+
+  const [importResultModal, setImportResultModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+  }>({ isOpen: false, title: '', message: '' });
 
   // Class Edit State
   const [editingClassId, setEditingClassId] = useState<string | null>(null);
@@ -169,21 +175,21 @@ export function Settings() {
       const ws = wb.Sheets[wsname];
       const data = xlsx.utils.sheet_to_json(ws);
       
-      const classesToAdd = data.map((row: any) => {
+      const parsedData = data.map((row: any) => {
         // Find major by name
-        const majorName = row['所属专业'] || row['major'] || '';
+        const majorName = String(row['所属专业'] || row['major'] || '').trim();
         const major = state.majors.find(m => m.name === majorName);
         
         // Find grade by name
-        const gradeName = row['年级'] || row['grade'] || '';
+        const gradeName = String(row['年级'] || row['grade'] || '').trim();
         const grade = state.grades.find(g => g.name === gradeName);
         
         // Find head teacher by name or ID card
-        const teacherName = row['班主任姓名'] || row['headTeacher'] || '';
-        const teacherIdCard = row['班主任身份证'] || row['headTeacherIdCard'] || '';
+        const teacherName = String(row['班主任姓名'] || row['headTeacher'] || '').trim();
+        const teacherIdCard = String(row['班主任身份证'] || row['headTeacherIdCard'] || '').trim();
         let headTeacherId = '';
         if (teacherIdCard) {
-          const teacher = state.teachers.find(t => t.idCard === String(teacherIdCard));
+          const teacher = state.teachers.find(t => t.idCard === teacherIdCard);
           if (teacher) headTeacherId = teacher.id;
         } else if (teacherName) {
           const teacher = state.teachers.find(t => t.name === teacherName);
@@ -191,21 +197,27 @@ export function Settings() {
         }
 
         // Find class category
-        const typeName = row['班级类型'] || row['type'] || '普通班';
+        const typeName = String(row['班级类型'] || row['type'] || '普通班').trim();
         const category = state.classCategories.find(c => c.name === typeName);
 
         return {
           majorId: major?.id || '',
           gradeId: grade?.id || '',
-          name: row['班级名称'] || row['name'] || '',
+          name: String(row['班级名称'] || row['name'] || '').trim(),
           type: category?.name || typeName,
-          classroom: row['教室'] || row['classroom'] || '',
+          classroom: String(row['教室'] || row['classroom'] || '').trim(),
           studentCount: parseInt(row['人数'] || row['studentCount'] || '0') || 0,
           headTeacherId
         };
-      }).filter(c => c.name && c.majorId && c.gradeId);
+      });
 
-      classesToAdd.forEach(c => addClass(c));
+      const result = importClasses(parsedData);
+      
+      setImportResultModal({
+        isOpen: true,
+        title: '导入结果',
+        message: `成功导入 ${result.added} 个班级，更新 ${result.updated} 个班级，失败 ${result.failed} 个班级（请检查专业、年级、班级名称是否填写正确）。`
+      });
       
       // Reset input
       e.target.value = '';
@@ -774,6 +786,25 @@ export function Settings() {
         type="danger"
         confirmText="确认删除"
       />
+
+      {importResultModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-6">
+              <h3 className="text-xl font-semibold text-slate-800 mb-2">{importResultModal.title}</h3>
+              <p className="text-slate-600 mb-6">{importResultModal.message}</p>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setImportResultModal({ ...importResultModal, isOpen: false })}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  确定
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
