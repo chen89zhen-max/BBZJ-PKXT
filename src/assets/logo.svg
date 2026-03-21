@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">
+  <!-- Outer Circle -->
+  <circle cx="500" cy="500" r="490" fill="none" stroke="black" stroke-width="20"/>
+  
+  <!-- Inner Circle -->
+  <circle cx="500" cy="500" r="350" fill="none" stroke="black" stroke-width="10"/>
+
+  <!-- Center Graphic -->
+  <!-- Flame -->
+  <path d="M500 250 C 550 200, 650 200, 650 350 C 650 450, 550 450, 500 400 C 450 450, 350 450, 350 350 C 350 200, 450 200, 500 250 Z" fill="red"/>
+  <!-- Gear -->
+  <circle cx="500" cy="400" r="30" fill="white"/>
+  <circle cx="500" cy="400" r="15" fill="red"/>
+  
+  <!-- Book/Wings -->
+  <path d="M350 550 L500 550 L500 750 L400 750 Z" fill="green"/>
+  <path d="M500 550 L650 550 L600 750 L500 750 Z" fill="blue"/>
+  
+  <!-- Text -->
+  <path id="curve" d="M150 500 A 350 350 0 0 1 850 500" fill="none"/>
+  <text font-size="60" font-weight="bold" fill="black">
+    <textPath href="#curve" startOffset="50%" text-anchor="middle">重庆市北碚职业教育中心</textPath>
+  </text>
+  
+  <path id="curve2" d="M150 500 A 350 350 0 0 0 850 500" fill="none"/>
+  <text font-size="40" font-weight="bold" fill="black">
+    <textPath href="#curve2" startOffset="50%" text-anchor="middle" dominant-baseline="hanging">CHONGQING BEIBEI VOCATIONAL HIGH SCHOOL</textPath>
+  </text>
+</svg>

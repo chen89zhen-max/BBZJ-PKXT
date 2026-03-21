@@ -1,9 +1,39 @@
-import React, { useState, Component, ErrorInfo, ReactNode } from 'react';
+import React, { useState, Component, ErrorInfo, ReactNode, useEffect } from 'react';
 import { AppProvider, useAppContext } from './context';
 import { MatrixSchedule } from './components/MatrixSchedule';
 import { TeacherWorkload } from './components/TeacherWorkload';
 import { Settings } from './components/Settings';
 import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle, Menu, ChevronLeft } from 'lucide-react';
+
+// 欢迎页动画组件
+function WelcomeScreen({ onComplete }: { onComplete: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onComplete, 3000);
+    return () => clearTimeout(timer);
+  }, [onComplete]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-100 animate-fade-out">
+      <img src="/src/assets/school-logo.png" alt="校徽" className="w-48 h-48 mb-6" />
+      <h1 className="text-4xl font-semibold text-slate-800" style={{ fontFamily: "'Dancing Script', cursive" }}>重庆市北碚职业教育中心</h1>
+      <div className="absolute bottom-8 text-slate-500 opacity-70">
+        @ChenZhen
+      </div>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap');
+        
+        @keyframes fadeOut {
+          0% { opacity: 1; }
+          80% { opacity: 1; }
+          100% { opacity: 0; visibility: hidden; }
+        }
+        .animate-fade-out {
+          animation: fadeOut 3s forwards;
+        }
+      `}</style>
+    </div>
+  );
+}
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -64,12 +94,15 @@ function MainContent() {
   const { state, connected } = useAppContext();
   const [activeTab, setActiveTab] = useState('dept-1'); // Default to first dept if exists
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(true);
 
   // Ensure activeTab is valid
   const currentDept = state.departments.find(d => d.id === activeTab) || state.departments[0];
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      {showWelcome && <WelcomeScreen onComplete={() => setShowWelcome(false)} />}
+      
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -80,10 +113,8 @@ function MainContent() {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="bg-indigo-600 p-2 rounded-lg">
-            <LayoutDashboard className="w-5 h-5 text-white" />
-          </div>
-          <h1 className="text-xl font-semibold text-slate-800">全校排课与工作量统计系统</h1>
+          <img src="/src/assets/school-logo.png" alt="校徽" className="w-10 h-10 object-contain" />
+          <h1 className="text-xl font-semibold text-slate-800">教学计划设置系统</h1>
         </div>
         <div className="flex items-center gap-2 text-sm">
           {connected ? (
@@ -157,8 +188,8 @@ function MainContent() {
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-auto p-8">
-          <div className="max-w-full mx-auto">
+        <main className="flex-1 overflow-auto p-8 flex flex-col">
+          <div className="max-w-full mx-auto flex-1">
             {activeTab === 'workload' ? (
               <TeacherWorkload />
             ) : activeTab === 'settings' ? (
@@ -171,6 +202,9 @@ function MainContent() {
               </div>
             )}
           </div>
+          <footer className="mt-8 text-center text-sm text-slate-400 border-t border-slate-200 pt-4">
+            © 2026 北碚职教教学计划设置系统 | ChenZhen 开发
+          </footer>
         </main>
       </div>
     </div>
