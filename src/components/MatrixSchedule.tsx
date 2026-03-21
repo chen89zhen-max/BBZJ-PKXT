@@ -307,13 +307,32 @@ export function MatrixSchedule({ department }: { department: Department }) {
     });
     aoa.push(row5);
 
-    // Row 6: Headers
-    const row6 = ['序号', '科目', '总课时'];
-    classes.forEach(() => {
-      row6.push('任课教师');
-      row6.push('课时');
+    // Row 6: 总课时
+    const row6: any[] = ['总课时', '', ''];
+    let grandTotal = 0;
+    classes.forEach(c => {
+      let classSum = 0;
+      filteredSubjects.forEach(subject => {
+        const key = `${c.id}:::${subject.id}`;
+        const existingGlobal = scheduleMap[key];
+        const pending = pendingSchedules[key];
+        const hours = pending ? pending.hours : (existingGlobal?.hours || 0);
+        classSum += hours;
+      });
+      row6.push(classSum || '');
+      row6.push('');
+      grandTotal += classSum;
     });
+    row6[2] = grandTotal || '';
     aoa.push(row6);
+
+    // Row 7: Headers
+    const row7 = ['序号', '科目', '总课时'];
+    classes.forEach(() => {
+      row7.push('任课教师');
+      row7.push('课时');
+    });
+    aoa.push(row7);
 
     // Data rows
     filteredSubjects.forEach((subject, index) => {
@@ -344,8 +363,8 @@ export function MatrixSchedule({ department }: { department: Department }) {
     
     // Merge cells for headers
     const merges: xlsx.Range[] = [];
-    // Merge class, type, classroom, studentCount, headTeacher headers
-    for (let i = 0; i < 5; i++) {
+    // Merge class, type, classroom, studentCount, headTeacher, totalHours headers
+    for (let i = 0; i < 6; i++) {
       merges.push({ s: { r: i, c: 0 }, e: { r: i, c: 2 } });
       for (let j = 0; j < classes.length; j++) {
         merges.push({ s: { r: i, c: 3 + j * 2 }, e: { r: i, c: 4 + j * 2 } });
@@ -493,7 +512,36 @@ export function MatrixSchedule({ department }: { department: Department }) {
                     );
                   })}
                 </tr>
-                {/* Row 6: Column Headers */}
+                {/* Row 6: 总课时 */}
+                <tr>
+                  <th colSpan={2} className="border border-slate-300 p-2 bg-slate-200 font-semibold sticky left-0 z-30">总课时</th>
+                  <th className="border border-slate-300 p-2 bg-slate-200 font-bold text-indigo-700 sticky left-[256px] z-30">
+                    {classes.reduce((grandSum, c) => {
+                      return grandSum + filteredSubjects.reduce((classSum, subject) => {
+                        const key = `${c.id}:::${subject.id}`;
+                        const existingGlobal = scheduleMap[key];
+                        const pending = pendingSchedules[key];
+                        const hours = pending ? pending.hours : (existingGlobal?.hours || 0);
+                        return classSum + hours;
+                      }, 0);
+                    }, 0)}
+                  </th>
+                  {classes.map(c => {
+                    const classTotal = filteredSubjects.reduce((sum, subject) => {
+                      const key = `${c.id}:::${subject.id}`;
+                      const existingGlobal = scheduleMap[key];
+                      const pending = pendingSchedules[key];
+                      const hours = pending ? pending.hours : (existingGlobal?.hours || 0);
+                      return sum + hours;
+                    }, 0);
+                    return (
+                      <th key={c.id} colSpan={2} className="border border-slate-300 p-2 text-indigo-700 bg-indigo-50/50 font-bold">
+                        {classTotal > 0 ? classTotal : ''}
+                      </th>
+                    );
+                  })}
+                </tr>
+                {/* Row 7: Column Headers */}
                 <tr>
                   <th className="border border-slate-300 p-2 bg-slate-200 font-semibold sticky left-0 z-30 w-16">序号</th>
                   <th className="border border-slate-300 p-2 bg-slate-200 font-semibold sticky left-[64px] z-30 w-48">科目</th>

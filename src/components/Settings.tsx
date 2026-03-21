@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context';
-import { Plus, Building2, UserCircle, BookOpen, Tags, Trash2, Edit2, Save, X, GraduationCap, Users, Upload, Download } from 'lucide-react';
+import { Plus, Building2, UserCircle, BookOpen, Tags, Trash2, Edit2, Save, X, GraduationCap, Users, Upload, Download, ArrowUp, ArrowDown } from 'lucide-react';
 import { Class, SubjectType } from '../types';
 import * as xlsx from 'xlsx';
 import { SearchableTeacherSelect } from './SearchableTeacherSelect';
@@ -12,9 +12,9 @@ export function Settings() {
     state, user,
     addDepartment, updateDepartment, deleteDepartment,
     addMajor, updateMajor, deleteMajor,
-    addClass, updateClass, deleteClass, deleteClasses, clearClasses, importClasses,
+    addClass, updateClass, deleteClass, deleteClasses, clearClasses, importClasses, importMajors,
     addTeacher, addTeachers, deleteTeacher, deleteTeachers,
-    addSubject, addSubjects, deleteSubject, deleteSubjects,
+    addSubject, addSubjects, deleteSubject, deleteSubjects, reorderSubject,
     addClassCategory, deleteClassCategory,
     addGrade, deleteGrade,
     clearSchedules
@@ -174,6 +174,45 @@ export function Settings() {
     if (!newMajorName.trim() || !selectedDeptId) return;
     addMajor(selectedDeptId, newMajorName.trim());
     setNewMajorName('');
+  };
+
+  const handleMajorImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const bstr = evt.target?.result;
+      const wb = xlsx.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data = xlsx.utils.sheet_to_json(ws);
+      
+      const majorsToAdd = data.map((row: any) => ({
+        name: String(row['专业名称'] || row['name'] || '').trim(),
+        departmentName: String(row['所属产业部'] || row['department'] || '').trim()
+      })).filter(m => m.name && m.departmentName);
+
+      const result = importMajors(majorsToAdd);
+      
+      setImportResultModal({
+        isOpen: true,
+        title: '导入结果',
+        message: `成功导入 ${result.added} 个专业，更新 ${result.updated} 个专业，失败 ${result.failed} 个专业（请检查产业部名称是否填写正确）。`
+      });
+      
+      e.target.value = '';
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const downloadMajorTemplate = () => {
+    const ws = xlsx.utils.json_to_sheet([{
+      '专业名称': '计算机应用',
+      '所属产业部': '信息技术产业部'
+    }]);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, '专业导入模板');
+    xlsx.writeFile(wb, '专业导入模板.xlsx');
   };
 
   const handleAddClass = () => {
@@ -474,9 +513,22 @@ export function Settings() {
           {/* Majors */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
             <div className="p-4 border-b border-slate-100 bg-slate-50">
-              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-                <GraduationCap className="w-4 h-4 text-emerald-600" /> 专业
-              </h3>
+              <div className="flex justify-between items-center">
+                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4 text-emerald-600" /> 专业
+                </h3>
+                {isAdmin && (
+                  <div className="flex gap-2">
+                    <button onClick={downloadMajorTemplate} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded text-xs flex items-center gap-1 border border-slate-300">
+                      <Download className="w-3 h-3" /> 模板
+                    </button>
+                    <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded text-xs flex items-center gap-1 border border-slate-300">
+                      <Upload className="w-3 h-3" /> 导入
+                      <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleMajorImport} />
+                    </label>
+                  </div>
+                )}
+              </div>
               {canEditDept(selectedDeptId) && (
                 <form onSubmit={handleAddMajor} className="mt-3 flex gap-2">
                   <input type="text" value={newMajorName} onChange={(e) => setNewMajorName(e.target.value)} placeholder="新专业..." disabled={!selectedDeptId} className="flex-1 px-3 py-1.5 border border-slate-300 rounded-md text-sm disabled:bg-slate-100" />
@@ -913,7 +965,23 @@ export function Settings() {
                         <span className={`text-xs px-2 py-0.5 rounded-full ${s.type === '中职专业课' ? 'bg-orange-100 text-orange-700' : s.type.includes('综合高中') ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{s.type}</span>
                       </div>
                       {canEdit && (
-                        <button onClick={() => deleteSubject(s.id)} className="text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => reorderSubject(s.id, 'up')} 
+                            className="text-slate-400 hover:text-indigo-600 p-1"
+                            title="上移"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => reorderSubject(s.id, 'down')} 
+                            className="text-slate-400 hover:text-indigo-600 p-1"
+                            title="下移"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => deleteSubject(s.id)} className="text-slate-400 hover:text-rose-600 p-1 ml-1"><Trash2 className="w-4 h-4" /></button>
+                        </div>
                       )}
                     </div>
                     {isProfessional && s.departmentId && (

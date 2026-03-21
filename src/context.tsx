@@ -30,6 +30,7 @@ interface AppContextType {
   deleteClasses: (ids: string[]) => void;
   clearClasses: () => void;
   importClasses: (classes: Omit<Class, 'id'>[]) => { added: number, updated: number, failed: number };
+  importMajors: (majors: { name: string, departmentName: string }[]) => { added: number, updated: number, failed: number };
   
   // Teachers
   addTeacher: (teacher: Omit<Teacher, 'id'>) => void;
@@ -42,6 +43,7 @@ interface AppContextType {
   addSubjects: (subjects: Omit<Subject, 'id'>[]) => void;
   deleteSubject: (id: string) => void;
   deleteSubjects: (ids: string[]) => void;
+  reorderSubject: (id: string, direction: 'up' | 'down') => void;
   
   // Class Categories
   addClassCategory: (name: string) => void;
@@ -299,6 +301,39 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     return { added, updated, failed };
   };
 
+  const importMajors = (majorsToAdd: { name: string, departmentName: string }[]) => {
+    let added = 0;
+    let updated = 0;
+    let failed = 0;
+    
+    const newMajors = [...state.majors];
+    
+    majorsToAdd.forEach(m => {
+      if (!m.name || !m.departmentName) {
+        failed++;
+        return;
+      }
+      
+      const dept = state.departments.find(d => d.name === m.departmentName);
+      if (!dept) {
+        failed++;
+        return;
+      }
+      
+      const existingIndex = newMajors.findIndex(major => major.name === m.name && major.departmentId === dept.id);
+      if (existingIndex >= 0) {
+        newMajors[existingIndex] = { ...newMajors[existingIndex], name: m.name, departmentId: dept.id };
+        updated++;
+      } else {
+        newMajors.push({ id: uuidv4(), name: m.name, departmentId: dept.id });
+        added++;
+      }
+    });
+    
+    broadcastState({ ...state, majors: newMajors });
+    return { added, updated, failed };
+  };
+
   // Teachers
   const addTeacher = (teacher: Omit<Teacher, 'id'>) => {
     const existingIndex = state.teachers.findIndex(t => {
@@ -384,10 +419,34 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
 
   // Subjects
   const addSubject = (name: string, type: SubjectType, departmentId?: string, majorId?: string) => {
+    const exists = state.subjects.some(s => 
+      s.name === name && 
+      s.departmentId === departmentId && 
+      s.majorId === majorId
+    );
+    if (exists) return;
     broadcastState({ ...state, subjects: [...state.subjects, { id: uuidv4(), name, type, departmentId, majorId }] });
   };
   const addSubjects = (newSubjects: Omit<Subject, 'id'>[]) => {
-    const subjectsToAdd = newSubjects.map(s => ({ ...s, id: uuidv4() }));
+    const existingSubjects = [...state.subjects];
+    const subjectsToAdd: Subject[] = [];
+    
+    newSubjects.forEach(s => {
+      const exists = existingSubjects.some(ex => 
+        ex.name === s.name && 
+        ex.departmentId === s.departmentId && 
+        ex.majorId === s.majorId
+      ) || subjectsToAdd.some(ad => 
+        ad.name === s.name && 
+        ad.departmentId === s.departmentId && 
+        ad.majorId === s.majorId
+      );
+      
+      if (!exists) {
+        subjectsToAdd.push({ ...s, id: uuidv4() });
+      }
+    });
+    
     broadcastState({ ...state, subjects: [...state.subjects, ...subjectsToAdd] });
   };
   const deleteSubject = (id: string) => {
@@ -424,6 +483,19 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     });
   };
 
+  const reorderSubject = (id: string, direction: 'up' | 'down') => {
+    const index = state.subjects.findIndex(s => s.id === id);
+    if (index === -1) return;
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === state.subjects.length - 1) return;
+
+    const newSubjects = [...state.subjects];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    [newSubjects[index], newSubjects[targetIndex]] = [newSubjects[targetIndex], newSubjects[index]];
+
+    broadcastState({ ...state, subjects: newSubjects });
+  };
+
   // Class Categories
   const addClassCategory = (name: string) => {
     broadcastState({ ...state, classCategories: [...state.classCategories, { id: uuidv4(), name }] });
@@ -453,6 +525,7 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
         deleteClasses,
         clearClasses,
         importClasses,
+        importMajors,
         addTeacher,
         addTeachers,
         deleteTeacher,
@@ -461,6 +534,7 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
         addSubjects,
         deleteSubject,
         deleteSubjects,
+        reorderSubject,
         addClassCategory,
         deleteClassCategory,
         clearSchedules,

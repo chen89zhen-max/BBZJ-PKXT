@@ -24,6 +24,7 @@ export function TeacherWorkload() {
   const [selectedGender, setSelectedGender] = useState<string>('all');
   const [selectedAgeRange, setSelectedAgeRange] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const workloadData = useMemo(() => {
     let filteredTeachers = state.teachers;
@@ -54,7 +55,7 @@ export function TeacherWorkload() {
       });
     }
 
-    return filteredTeachers.map((teacher) => {
+    const data = filteredTeachers.map((teacher) => {
       const teacherSchedules = state.schedules.filter((s) => 
         s.teacherId === teacher.id && 
         s.hours > 0 &&
@@ -89,8 +90,13 @@ export function TeacherWorkload() {
         schedules: teacherSchedules,
         deptBreakdown
       };
-    }).sort((a, b) => b.totalHours - a.totalHours);
-  }, [state.teachers, state.schedules, state.classes, state.majors, state.departments, state.subjects, selectedDepartment, selectedSubject, selectedGender, selectedAgeRange, searchQuery]);
+    });
+
+    return data.sort((a, b) => {
+      if (sortOrder === 'asc') return a.totalHours - b.totalHours;
+      return b.totalHours - a.totalHours;
+    });
+  }, [state.teachers, state.schedules, state.classes, state.majors, state.departments, state.subjects, selectedDepartment, selectedSubject, selectedGender, selectedAgeRange, searchQuery, sortOrder]);
 
   const totalSchoolHours = workloadData.reduce((sum, t) => sum + t.totalHours, 0);
 
@@ -254,7 +260,18 @@ export function TeacherWorkload() {
             <tr>
               <th className="px-6 py-4 font-medium w-48">教师姓名</th>
               <th className="px-6 py-4 font-medium">授课详情 (专业部 / 班级 / 科目 / 课时)</th>
-              <th className="px-6 py-4 font-medium text-right w-32">总课时/周</th>
+              <th 
+                className="px-6 py-4 font-medium text-right w-32 cursor-pointer hover:bg-slate-100 transition-colors group"
+                onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+              >
+                <div className="flex items-center justify-end gap-1">
+                  总课时/周
+                  <div className="flex flex-col -space-y-1">
+                    <span className={`text-[8px] ${sortOrder === 'asc' ? 'text-indigo-600' : 'text-slate-300'}`}>▲</span>
+                    <span className={`text-[8px] ${sortOrder === 'desc' ? 'text-indigo-600' : 'text-slate-300'}`}>▼</span>
+                  </div>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
