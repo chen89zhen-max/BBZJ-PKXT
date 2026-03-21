@@ -57,6 +57,16 @@ export interface Schedule {
   hours: number;
 }
 
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'USER';
+
+export interface User {
+  id: string;
+  username: string;
+  passwordHash: string;
+  role: UserRole;
+  departmentIds?: string[]; // For 'USER' role to limit access to multiple departments
+}
+
 export interface AppState {
   departments: Department[];
   majors: Major[];
@@ -66,4 +76,5 @@ export interface AppState {
   subjects: Subject[];
   schedules: Schedule[];
   classCategories: ClassCategory[];
+  users: User[];
 }

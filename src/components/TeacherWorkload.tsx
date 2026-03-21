@@ -55,7 +55,12 @@ export function TeacherWorkload() {
     }
 
     return filteredTeachers.map((teacher) => {
-      const teacherSchedules = state.schedules.filter((s) => s.teacherId === teacher.id);
+      const teacherSchedules = state.schedules.filter((s) => 
+        s.teacherId === teacher.id && 
+        s.hours > 0 &&
+        state.classes.some(c => c.id === s.classId && c.name) && 
+        state.subjects.some(sub => sub.id === s.subjectId && sub.name)
+      );
       const totalHours = teacherSchedules.reduce((sum, s) => sum + s.hours, 0);
       
       // Group by department for detailed view
@@ -65,7 +70,7 @@ export function TeacherWorkload() {
         const dept = state.departments.find(d => d.id === major?.departmentId);
         const subject = state.subjects.find(s => s.id === schedule.subjectId);
         
-        const deptName = dept ? dept.name : '未知专业部';
+        const deptName = dept?.name || '未知专业部';
         
         if (!acc[deptName]) {
           acc[deptName] = [];

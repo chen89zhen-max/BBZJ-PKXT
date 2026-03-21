@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { AppState, Schedule, Department, Teacher, Major, Grade, Class, Subject, ClassCategory, SubjectType } from './types';
+import { AppState, Schedule, Department, Teacher, Major, Grade, Class, Subject, ClassCategory, SubjectType, User } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 interface AppContextType {
   state: AppState;
+  user: Partial<User> | null;
   updateSchedule: (classId: string, subjectId: string, teacherId: string, hours: number) => void;
   batchUpdateSchedules: (updates: { classId: string, subjectId: string, teacherId: string, hours: number }[]) => void;
   
@@ -55,7 +56,7 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | null }> = ({ children, user }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
   const [state, setState] = useState<AppState>({
@@ -67,6 +68,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     subjects: [],
     schedules: [],
     classCategories: [],
+    users: [],
   });
 
   useEffect(() => {
@@ -145,9 +147,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const deptMajorIds = new Set(deptMajors.map(m => m.id));
     const deptClassIds = new Set(state.classes.filter(c => deptMajorIds.has(c.majorId)).map(c => c.id));
     
+    // Also remove any schedules that point to non-existent classes or subjects
+    const validClassIds = new Set(state.classes.map(c => c.id));
+    const validSubjectIds = new Set(state.subjects.map(s => s.id));
+    const validTeacherIds = new Set(state.teachers.map(t => t.id));
+
     broadcastState({
       ...state,
-      schedules: state.schedules.filter(s => !deptClassIds.has(s.classId))
+      schedules: state.schedules.filter(s => {
+        // Remove if it belongs to this department
+        if (deptClassIds.has(s.classId)) return false;
+        
+        // Remove if it's orphaned (points to non-existent class, subject, or teacher)
+        if (!validClassIds.has(s.classId) || !validSubjectIds.has(s.subjectId) || !validTeacherIds.has(s.teacherId)) return false;
+        
+        return true;
+      })
     });
   };
 
@@ -159,7 +174,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     broadcastState({ ...state, departments: state.departments.map(d => d.id === id ? { ...d, name } : d) });
   };
   const deleteDepartment = (id: string) => {
-    broadcastState({ ...state, departments: state.departments.filter(d => d.id !== id) });
+    const remainingMajors = state.majors.filter(m => m.departmentId !== id);
+    const remainingMajorIds = new Set(remainingMajors.map(m => m.id));
+    const remainingClasses = state.classes.filter(c => remainingMajorIds.has(c.majorId));
+    const remainingClassIds = new Set(remainingClasses.map(c => c.id));
+    const remainingSubjectIds = new Set(state.subjects.filter(s => s.departmentId !== id).map(s => s.id));
+    const remainingTeacherIds = new Set(state.teachers.map(t => t.id));
+
+    broadcastState({ 
+      ...state, 
+      departments: state.departments.filter(d => d.id !== id),
+      majors: remainingMajors,
+      classes: remainingClasses,
+      subjects: state.subjects.filter(s => s.departmentId !== id),
+      schedules: state.schedules.filter(s => 
+        remainingClassIds.has(s.classId) && 
+        remainingSubjectIds.has(s.subjectId) && 
+        remainingTeacherIds.has(s.teacherId)
+      )
+    });
   };
 
   // Majors
@@ -170,7 +203,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     broadcastState({ ...state, majors: state.majors.map(m => m.id === id ? { ...m, name } : m) });
   };
   const deleteMajor = (id: string) => {
-    broadcastState({ ...state, majors: state.majors.filter(m => m.id !== id) });
+    const remainingClasses = state.classes.filter(c => c.majorId !== id);
+    const remainingClassIds = new Set(remainingClasses.map(c => c.id));
+    const remainingSubjectIds = new Set(state.subjects.filter(s => s.majorId !== id).map(s => s.id));
+    const remainingTeacherIds = new Set(state.teachers.map(t => t.id));
+
+    broadcastState({ 
+      ...state, 
+      majors: state.majors.filter(m => m.id !== id),
+      classes: remainingClasses,
+      subjects: state.subjects.filter(s => s.majorId !== id),
+      schedules: state.schedules.filter(s => 
+        remainingClassIds.has(s.classId) && 
+        remainingSubjectIds.has(s.subjectId) && 
+        remainingTeacherIds.has(s.teacherId)
+      )
+    });
   };
 
   // Grades
@@ -189,11 +237,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     broadcastState({ ...state, classes: state.classes.map(c => c.id === cls.id ? cls : c) });
   };
   const deleteClass = (id: string) => {
-    broadcastState({ ...state, classes: state.classes.filter(c => c.id !== id) });
+    const remainingClasses = state.classes.filter(c => c.id !== id);
+    const remainingClassIds = new Set(remainingClasses.map(c => c.id));
+    const remainingSubjectIds = new Set(state.subjects.map(s => s.id));
+    const remainingTeacherIds = new Set(state.teachers.map(t => t.id));
+
+    broadcastState({ 
+      ...state, 
+      classes: remainingClasses,
+      schedules: state.schedules.filter(s => 
+        remainingClassIds.has(s.classId) && 
+        remainingSubjectIds.has(s.subjectId) && 
+        remainingTeacherIds.has(s.teacherId)
+      )
+    });
   };
   const deleteClasses = (ids: string[]) => {
     const idSet = new Set(ids);
-    broadcastState({ ...state, classes: state.classes.filter(c => !idSet.has(c.id)) });
+    const remainingClasses = state.classes.filter(c => !idSet.has(c.id));
+    const remainingClassIds = new Set(remainingClasses.map(c => c.id));
+    const remainingSubjectIds = new Set(state.subjects.map(s => s.id));
+    const remainingTeacherIds = new Set(state.teachers.map(t => t.id));
+
+    broadcastState({ 
+      ...state, 
+      classes: remainingClasses,
+      schedules: state.schedules.filter(s => 
+        remainingClassIds.has(s.classId) && 
+        remainingSubjectIds.has(s.subjectId) && 
+        remainingTeacherIds.has(s.teacherId)
+      )
+    });
   };
   const clearClasses = () => {
     broadcastState({ ...state, classes: [], schedules: [] });
@@ -275,11 +349,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     broadcastState({ ...state, teachers: updatedTeachers });
   };
   const deleteTeacher = (id: string) => {
-    broadcastState({ ...state, teachers: state.teachers.filter(t => t.id !== id) });
+    const remainingTeachers = state.teachers.filter(t => t.id !== id);
+    const remainingTeacherIds = new Set(remainingTeachers.map(t => t.id));
+    const remainingClassIds = new Set(state.classes.map(c => c.id));
+    const remainingSubjectIds = new Set(state.subjects.map(s => s.id));
+
+    broadcastState({ 
+      ...state, 
+      teachers: remainingTeachers,
+      schedules: state.schedules.filter(s => 
+        remainingTeacherIds.has(s.teacherId) && 
+        remainingClassIds.has(s.classId) && 
+        remainingSubjectIds.has(s.subjectId)
+      )
+    });
   };
   const deleteTeachers = (ids: string[]) => {
     const idSet = new Set(ids);
-    broadcastState({ ...state, teachers: state.teachers.filter(t => !idSet.has(t.id)) });
+    const remainingTeachers = state.teachers.filter(t => !idSet.has(t.id));
+    const remainingTeacherIds = new Set(remainingTeachers.map(t => t.id));
+    const remainingClassIds = new Set(state.classes.map(c => c.id));
+    const remainingSubjectIds = new Set(state.subjects.map(s => s.id));
+
+    broadcastState({ 
+      ...state, 
+      teachers: remainingTeachers,
+      schedules: state.schedules.filter(s => 
+        remainingTeacherIds.has(s.teacherId) && 
+        remainingClassIds.has(s.classId) && 
+        remainingSubjectIds.has(s.subjectId)
+      )
+    });
   };
 
   // Subjects
@@ -291,11 +391,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     broadcastState({ ...state, subjects: [...state.subjects, ...subjectsToAdd] });
   };
   const deleteSubject = (id: string) => {
-    broadcastState({ ...state, subjects: state.subjects.filter(s => s.id !== id) });
+    const remainingSubjects = state.subjects.filter(s => s.id !== id);
+    const remainingSubjectIds = new Set(remainingSubjects.map(s => s.id));
+    const remainingClassIds = new Set(state.classes.map(c => c.id));
+    const remainingTeacherIds = new Set(state.teachers.map(t => t.id));
+
+    broadcastState({ 
+      ...state, 
+      subjects: remainingSubjects,
+      schedules: state.schedules.filter(s => 
+        remainingSubjectIds.has(s.subjectId) && 
+        remainingClassIds.has(s.classId) && 
+        remainingTeacherIds.has(s.teacherId)
+      )
+    });
   };
   const deleteSubjects = (ids: string[]) => {
     const idSet = new Set(ids);
-    broadcastState({ ...state, subjects: state.subjects.filter(s => !idSet.has(s.id)) });
+    const remainingSubjects = state.subjects.filter(s => !idSet.has(s.id));
+    const remainingSubjectIds = new Set(remainingSubjects.map(s => s.id));
+    const remainingClassIds = new Set(state.classes.map(c => c.id));
+    const remainingTeacherIds = new Set(state.teachers.map(t => t.id));
+
+    broadcastState({ 
+      ...state, 
+      subjects: remainingSubjects,
+      schedules: state.schedules.filter(s => 
+        remainingSubjectIds.has(s.subjectId) && 
+        remainingClassIds.has(s.classId) && 
+        remainingTeacherIds.has(s.teacherId)
+      )
+    });
   };
 
   // Class Categories
@@ -310,6 +436,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     <AppContext.Provider
       value={{
         state,
+        user,
         updateSchedule,
         batchUpdateSchedules,
         addDepartment,

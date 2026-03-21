@@ -8,45 +8,49 @@ import { ConfirmModal } from './ConfirmModal';
 import { PromptModal } from './PromptModal';
 
 // Memoized Cell Component to prevent unnecessary re-renders
-const ScheduleCell = memo(({ 
-  classId, 
-  subjectId, 
-  teacherId, 
-  hours, 
-  isModified, 
-  teachers, 
-  onChange 
-}: { 
-  classId: string, 
-  subjectId: string, 
-  teacherId: string, 
-  hours: number | string, 
-  isModified: boolean, 
-  teachers: Teacher[], 
-  onChange: (classId: string, subjectId: string, field: 'teacherId' | 'hours', value: string | number) => void 
-}) => {
+  const ScheduleCell = memo(({ 
+    classId, 
+    subjectId, 
+    teacherId, 
+    hours, 
+    isModified, 
+    teachers, 
+    canEdit,
+    onChange 
+  }: { 
+    classId: string, 
+    subjectId: string, 
+    teacherId: string, 
+    hours: number | string, 
+    isModified: boolean, 
+    teachers: Teacher[], 
+    canEdit: boolean,
+    onChange: (classId: string, subjectId: string, field: 'teacherId' | 'hours', value: string | number) => void 
+  }) => {
   return (
     <React.Fragment>
-      <td className={`border border-slate-300 p-0 relative group ${isModified ? 'bg-amber-50/50' : ''}`}>
-        <SearchableTeacherSelect
-          value={teacherId}
-          onChange={(val) => onChange(classId, subjectId, 'teacherId', val)}
-          teachers={teachers}
-          placeholder=""
-          className="h-full"
-          buttonClassName={`w-full h-full min-h-[40px] px-2 py-1 bg-transparent border-none outline-none focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500 text-center cursor-pointer group-hover:bg-indigo-50/50 transition-colors flex items-center justify-center ${isModified ? 'text-amber-700 font-medium' : ''}`}
-          hideChevron
-        />
-      </td>
-      <td className={`border border-slate-300 p-0 relative group ${isModified ? 'bg-amber-50/50' : ''}`}>
-        <input
-          type="number"
-          min="0"
-          value={hours}
-          onChange={(e) => onChange(classId, subjectId, 'hours', parseInt(e.target.value) || 0)}
-          className={`w-full h-full min-h-[40px] px-1 py-1 bg-transparent border-none outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 text-center group-hover:bg-indigo-50/50 transition-colors ${isModified ? 'text-amber-700 font-medium' : ''}`}
-        />
-      </td>
+          <td className={`border border-slate-300 p-0 relative group ${isModified ? 'bg-amber-50/50' : ''}`}>
+            <SearchableTeacherSelect
+              value={teacherId}
+              onChange={(val) => onChange(classId, subjectId, 'teacherId', val)}
+              teachers={teachers}
+              disabled={!canEdit}
+              placeholder=""
+              className="h-full"
+              buttonClassName={`w-full h-full min-h-[40px] px-2 py-1 bg-transparent border-none outline-none focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500 text-center cursor-pointer group-hover:bg-indigo-50/50 transition-colors flex items-center justify-center ${isModified ? 'text-amber-700 font-medium' : ''}`}
+              hideChevron
+            />
+          </td>
+          <td className={`border border-slate-300 p-0 relative group ${isModified ? 'bg-amber-50/50' : ''}`}>
+            <input
+              type="number"
+              min="0"
+              value={hours}
+              disabled={!canEdit}
+              onChange={(e) => onChange(classId, subjectId, 'hours', parseInt(e.target.value) || 0)}
+              className={`w-full h-full min-h-[40px] px-1 py-1 bg-transparent border-none outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 text-center group-hover:bg-indigo-50/50 transition-colors ${isModified ? 'text-amber-700 font-medium' : ''} ${!canEdit ? 'cursor-not-allowed' : ''}`}
+            />
+          </td>
     </React.Fragment>
   );
 });
@@ -54,8 +58,14 @@ const ScheduleCell = memo(({
 ScheduleCell.displayName = 'ScheduleCell';
 
 export function MatrixSchedule({ department }: { department: Department }) {
-  const { state, batchUpdateSchedules, clearDepartmentSchedules } = useAppContext();
+  const { state, user, batchUpdateSchedules, clearDepartmentSchedules } = useAppContext();
   
+  const canEdit = useMemo(() => {
+    if (!user) return false;
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return true;
+    return user.departmentIds?.includes(department.id);
+  }, [user, department.id]);
+
   const [selectedGradeId, setSelectedGradeId] = useState<string>('all');
   const [selectedMajorId, setSelectedMajorId] = useState<string>('all');
   
@@ -72,7 +82,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
   const scheduleMap = useMemo(() => {
     const map: Record<string, Schedule> = {};
     state.schedules.forEach(s => {
-      map[`${s.classId}-${s.subjectId}`] = s;
+      map[`${s.classId}:::${s.subjectId}`] = s;
     });
     return map;
   }, [state.schedules]);
@@ -173,7 +183,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
 
   // Handle cell updates - Memoized to prevent cell re-renders
   const handleCellChange = useCallback((classId: string, subjectId: string, field: 'teacherId' | 'hours', value: string | number) => {
-    const key = `${classId}-${subjectId}`;
+    const key = `${classId}:::${subjectId}`;
     
     setPendingSchedules(prev => {
       const existingGlobal = scheduleMap[key];
@@ -204,7 +214,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
 
   const handleSaveChanges = () => {
     const updates = Object.entries(pendingSchedules).map(([key, data]) => {
-      const [classId, subjectId] = key.split('-');
+      const [classId, subjectId] = key.split(':::');
       return {
         classId,
         subjectId,
@@ -313,7 +323,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
       const classData: any[] = [];
       
       classes.forEach(c => {
-        const key = `${c.id}-${subject.id}`;
+        const key = `${c.id}:::${subject.id}`;
         const existingGlobal = scheduleMap[key];
         const pending = pendingSchedules[key];
         
@@ -412,12 +422,14 @@ export function MatrixSchedule({ department }: { department: Department }) {
             >
               <Download className="w-4 h-4" /> 导出Excel
             </button>
-            <button 
-              onClick={handleClearSchedules}
-              className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-md hover:bg-rose-100 transition-colors text-sm font-medium"
-            >
-              <Trash2 className="w-4 h-4" /> 清空排课
-            </button>
+            {canEdit && (
+              <button 
+                onClick={handleClearSchedules}
+                className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-md hover:bg-rose-100 transition-colors text-sm font-medium"
+              >
+                <Trash2 className="w-4 h-4" /> 清空排课
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -498,7 +510,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
                 {filteredSubjects.map((subject, index) => {
                   // Calculate total hours for this subject across currently shown classes
                   const totalHours = classes.reduce((sum, c) => {
-                    const key = `${c.id}-${subject.id}`;
+                    const key = `${c.id}:::${subject.id}`;
                     const existingGlobal = scheduleMap[key];
                     const pending = pendingSchedules[key];
                     const hours = pending ? pending.hours : (existingGlobal?.hours || 0);
@@ -512,7 +524,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
                       <td className="border border-slate-300 p-2 sticky left-[256px] bg-white z-10 font-bold text-indigo-600">{totalHours > 0 ? totalHours : ''}</td>
                       
                       {classes.map(c => {
-                        const key = `${c.id}-${subject.id}`;
+                        const key = `${c.id}:::${subject.id}`;
                         const existingGlobal = scheduleMap[key];
                         const pending = pendingSchedules[key];
                         
@@ -529,6 +541,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
                             hours={hours}
                             isModified={isModified}
                             teachers={state.teachers}
+                            canEdit={canEdit}
                             onChange={handleCellChange}
                           />
                         );

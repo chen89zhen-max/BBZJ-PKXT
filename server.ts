@@ -5,9 +5,13 @@ import { Server } from 'socket.io';
 import path from 'path';
 import fs from 'fs';
 import { AppState } from './src/types';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import cookieParser from 'cookie-parser';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'db.json');
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-me';
 
 // Initial State
 let state: AppState = {
@@ -119,6 +123,7 @@ let state: AppState = {
     { id: 'sch-23', classId: 'c-6', subjectId: 's-3', teacherId: 't-3', hours: 5 },
     { id: 'sch-24', classId: 'c-6', subjectId: 's-13', teacherId: 't-14', hours: 2 },
   ],
+  users: [],
 };
 
 function loadState() {
@@ -128,7 +133,10 @@ function loadState() {
     }
     if (fs.existsSync(DATA_FILE)) {
       const data = fs.readFileSync(DATA_FILE, 'utf-8');
-      state = JSON.parse(data);
+      const loadedState = JSON.parse(data);
+      state = { ...state, ...loadedState };
+      // Ensure users array exists
+      if (!state.users) state.users = [];
       console.log('Loaded state from disk.');
     } else {
       saveState(); // Save initial default state
@@ -150,9 +158,26 @@ function saveState() {
   }
 }
 
+async function setupAdmin() {
+  const adminExists = state.users.find(u => u.username === 'chenzhen');
+  if (!adminExists) {
+    const passwordHash = await bcrypt.hash('Chen@890312', 10);
+    state.users.push({
+      id: 'admin-1',
+      username: 'chenzhen',
+      passwordHash,
+      role: 'SUPER_ADMIN'
+    });
+    saveState();
+    console.log('Admin user created.');
+  }
+}
+
 async function startServer() {
   loadState();
+  await setupAdmin();
   const app = express();
+  app.use(cookieParser());
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
     path: '/socket.io/',
@@ -171,15 +196,25 @@ async function startServer() {
   io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
 
-    // Send initial state to the newly connected client
-    socket.emit('state:sync', state);
+    // Send initial state to the newly connected client (filter out sensitive data)
+    const filteredState = {
+      ...state,
+      users: state.users.map(({ passwordHash, ...u }) => u)
+    };
+    socket.emit('state:sync', filteredState);
 
     // Handle updates
     socket.on('state:update', (newState: AppState) => {
-      state = newState;
+      // Merge updates but keep server-side users (users managed via REST)
+      state = { ...newState, users: state.users };
       saveState();
+      
+      const filteredState = {
+        ...state,
+        users: state.users.map(({ passwordHash, ...u }) => u)
+      };
       // Broadcast to all OTHER clients
-      socket.broadcast.emit('state:sync', state);
+      socket.broadcast.emit('state:sync', filteredState);
     });
 
     socket.on('disconnect', () => {
@@ -188,6 +223,140 @@ async function startServer() {
   });
 
   // API routes FIRST
+  app.use(express.json());
+
+  function authorize(roles: string[]) {
+    return (req: any, res: any, next: any) => {
+      const token = req.cookies.token;
+      if (!token) return res.status(401).json({ error: 'Not authenticated' });
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        if (!roles.includes(decoded.role)) return res.status(403).json({ error: 'Forbidden' });
+        req.user = decoded;
+        next();
+      } catch (err) {
+        res.status(401).json({ error: 'Invalid token' });
+      }
+    };
+  }
+
+  // User Management API (SUPER_ADMIN only)
+  app.get('/api/users', authorize(['SUPER_ADMIN']), (req, res) => {
+    const filteredUsers = state.users.map(({ passwordHash, ...u }) => u);
+    res.json(filteredUsers);
+  });
+
+  app.post('/api/users', authorize(['SUPER_ADMIN']), async (req, res) => {
+    const { username, password, role, departmentIds } = req.body;
+    if (state.users.find(u => u.username === username)) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+    const passwordHash = await bcrypt.hash(password, 10);
+    const newUser = {
+      id: `u-${Date.now()}`,
+      username,
+      passwordHash,
+      role,
+      departmentIds
+    };
+    state.users.push(newUser);
+    saveState();
+    
+    // Notify all clients about the change (filtered)
+    const filteredState = {
+      ...state,
+      users: state.users.map(({ passwordHash, ...u }) => u)
+    };
+    io.emit('state:sync', filteredState);
+    
+    res.json({ message: 'User created' });
+  });
+
+  app.put('/api/users/:id', authorize(['SUPER_ADMIN']), async (req, res) => {
+    const { id } = req.params;
+    const { username, password, role, departmentIds } = req.body;
+    const userIndex = state.users.findIndex(u => u.id === id);
+    if (userIndex === -1) return res.status(404).json({ error: 'User not found' });
+
+    const user = state.users[userIndex];
+    if (username) user.username = username;
+    if (role) user.role = role;
+    if (departmentIds !== undefined) user.departmentIds = departmentIds;
+    if (password) {
+      user.passwordHash = await bcrypt.hash(password, 10);
+    }
+
+    saveState();
+    
+    const filteredState = {
+      ...state,
+      users: state.users.map(({ passwordHash, ...u }) => u)
+    };
+    io.emit('state:sync', filteredState);
+    
+    res.json({ message: 'User updated' });
+  });
+
+  app.delete('/api/users/:id', authorize(['SUPER_ADMIN']), (req: any, res) => {
+    const { id } = req.params;
+    // Prevent deleting self
+    if (req.user.id === id) return res.status(400).json({ error: 'Cannot delete yourself' });
+
+    const initialCount = state.users.length;
+    state.users = state.users.filter(u => u.id !== id);
+    
+    if (state.users.length === initialCount) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    saveState();
+    
+    const filteredState = {
+      ...state,
+      users: state.users.map(({ passwordHash, ...u }) => u)
+    };
+    io.emit('state:sync', filteredState);
+    
+    res.json({ message: 'User deleted' });
+  });
+
+  app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
+    const user = state.users.find(u => u.username === username);
+    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
+    res.cookie('token', token, { 
+      httpOnly: true, 
+      secure: true, 
+      sameSite: 'none' 
+    });
+    res.json({ user: { id: user.id, username: user.username, role: user.role, departmentIds: user.departmentIds } });
+  });
+
+  app.post('/api/logout', (req, res) => {
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none'
+    });
+    res.json({ message: 'Logged out' });
+  });
+
+  app.get('/api/me', (req, res) => {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const user = state.users.find(u => u.id === decoded.id);
+      if (!user) return res.status(401).json({ error: 'User not found' });
+      res.json({ user: { id: user.id, username: user.username, role: user.role, departmentIds: user.departmentIds } });
+    } catch (err) {
+      res.status(401).json({ error: 'Invalid token' });
+    }
+  });
+
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
   });

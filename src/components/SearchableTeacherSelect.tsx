@@ -11,6 +11,7 @@ interface Props {
   className?: string;
   buttonClassName?: string;
   hideChevron?: boolean;
+  disabled?: boolean;
 }
 
 export function SearchableTeacherSelect({ 
@@ -20,7 +21,8 @@ export function SearchableTeacherSelect({
   placeholder = "选择教师...", 
   className = "",
   buttonClassName = "w-full min-h-[32px] px-2 py-1 bg-white border border-slate-300 rounded-md text-sm flex items-center justify-between cursor-pointer focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500",
-  hideChevron = false
+  hideChevron = false,
+  disabled = false
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -102,8 +104,9 @@ export function SearchableTeacherSelect({
   return (
     <div className={`relative ${className}`} ref={containerRef}>
       <div 
-        className={buttonClassName}
+        className={`${buttonClassName} ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}
         onClick={(e) => {
+          if (disabled) return;
           e.stopPropagation();
           setIsOpen(!isOpen);
         }}

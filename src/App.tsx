@@ -3,37 +3,11 @@ import { AppProvider, useAppContext } from './context';
 import { MatrixSchedule } from './components/MatrixSchedule';
 import { TeacherWorkload } from './components/TeacherWorkload';
 import { Settings } from './components/Settings';
-import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle, Menu, ChevronLeft } from 'lucide-react';
+import { UserManagement } from './components/UserManagement';
+import { Login } from './components/Login';
+import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle, Menu, ChevronLeft, LogOut, UserCog } from 'lucide-react';
 
-// 欢迎页动画组件
-function WelcomeScreen({ onComplete }: { onComplete: () => void }) {
-  useEffect(() => {
-    const timer = setTimeout(onComplete, 3000);
-    return () => clearTimeout(timer);
-  }, [onComplete]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-100 animate-fade-out">
-      <img src="/school-logo.png" alt="校徽" className="w-48 h-48 mb-6" />
-      <h1 className="text-4xl font-semibold text-slate-800" style={{ fontFamily: "'Dancing Script', cursive" }}>重庆市北碚职业教育中心</h1>
-      <div className="absolute bottom-8 text-slate-500 opacity-70">
-        @ChenZhen
-      </div>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap');
-        
-        @keyframes fadeOut {
-          0% { opacity: 1; }
-          80% { opacity: 1; }
-          100% { opacity: 0; visibility: hidden; }
-        }
-        .animate-fade-out {
-          animation: fadeOut 3s forwards;
-        }
-      `}</style>
-    </div>
-  );
-}
+// 欢迎页动画组件已移除
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -90,19 +64,28 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
-function MainContent() {
+function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
   const { state, connected } = useAppContext();
   const [activeTab, setActiveTab] = useState('dept-1'); // Default to first dept if exists
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [showWelcome, setShowWelcome] = useState(true);
 
   // Ensure activeTab is valid
   const currentDept = state.departments.find(d => d.id === activeTab) || state.departments[0];
 
+  const handleLogout = async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    onLogout();
+  };
+
+  const canAccess = (tab: string) => {
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return true;
+    if (tab === 'workload' || tab === 'settings') return true;
+    // USER role can view all departments but edit only their own (handled in components)
+    return true;
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {showWelcome && <WelcomeScreen onComplete={() => setShowWelcome(false)} />}
-      
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -116,7 +99,12 @@ function MainContent() {
           <img src="/school-logo.png" alt="校徽" className="w-10 h-10 object-contain" />
           <h1 className="text-xl font-semibold text-slate-800">教学计划设置系统</h1>
         </div>
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-4 text-sm">
+          <span className="text-slate-600">欢迎, {user.username} ({user.role})</span>
+          <button onClick={handleLogout} className="flex items-center gap-1 text-slate-600 hover:text-rose-600">
+            <LogOut className="w-4 h-4" />
+            退出
+          </button>
           {connected ? (
             <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full font-medium">
               <Wifi className="w-4 h-4" />
@@ -142,18 +130,20 @@ function MainContent() {
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">专业部排课</h2>
             <nav className="space-y-1">
               {state.departments.map((dept) => (
-                <button
-                  key={dept.id}
-                  onClick={() => setActiveTab(dept.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    activeTab === dept.id
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <div className={`w-2 h-2 rounded-full ${activeTab === dept.id ? 'bg-indigo-600' : 'bg-slate-300'}`} />
-                  {dept.name}
-                </button>
+                canAccess(dept.id) && (
+                  <button
+                    key={dept.id}
+                    onClick={() => setActiveTab(dept.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      activeTab === dept.id
+                        ? 'bg-indigo-50 text-indigo-700'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className={`w-2 h-2 rounded-full ${activeTab === dept.id ? 'bg-indigo-600' : 'bg-slate-300'}`} />
+                    {dept.name}
+                  </button>
+                )
               ))}
             </nav>
           </div>
@@ -161,28 +151,45 @@ function MainContent() {
           <div className="p-4 border-t border-slate-200 mt-auto">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">全局统计与设置</h2>
             <nav className="space-y-1">
-              <button
-                onClick={() => setActiveTab('workload')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === 'workload'
-                    ? 'bg-indigo-50 text-indigo-700'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                教师工作量统计
-              </button>
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === 'settings'
-                    ? 'bg-indigo-50 text-indigo-700'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <SettingsIcon className="w-4 h-4" />
-                基础数据设置
-              </button>
+              {canAccess('workload') && (
+                <button
+                  onClick={() => setActiveTab('workload')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === 'workload'
+                      ? 'bg-indigo-50 text-indigo-700'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  教师工作量统计
+                </button>
+              )}
+              {canAccess('settings') && (
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === 'settings'
+                      ? 'bg-indigo-50 text-indigo-700'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <SettingsIcon className="w-4 h-4" />
+                  基础数据设置
+                </button>
+              )}
+              {user.role === 'SUPER_ADMIN' && (
+                <button
+                  onClick={() => setActiveTab('users')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === 'users'
+                      ? 'bg-indigo-50 text-indigo-700'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <UserCog className="w-4 h-4" />
+                  用户管理
+                </button>
+              )}
             </nav>
           </div>
         </aside>
@@ -194,6 +201,8 @@ function MainContent() {
               <TeacherWorkload />
             ) : activeTab === 'settings' ? (
               <Settings />
+            ) : activeTab === 'users' ? (
+              <UserManagement />
             ) : currentDept ? (
               <MatrixSchedule department={currentDept} />
             ) : (
@@ -212,10 +221,36 @@ function MainContent() {
 }
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    console.log('Checking authentication...');
+    fetch('/api/me')
+      .then(res => {
+        console.log('Auth response status:', res.status);
+        if (!res.ok) throw new Error('Not authenticated');
+        return res.json();
+      })
+      .then(data => {
+        console.log('Auth data:', data);
+        if (data.user) setUser(data.user);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Auth check failed:', err);
+        setUser(null);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (!user) return <Login onLogin={setUser} />;
+
   return (
     <ErrorBoundary>
-      <AppProvider>
-        <MainContent />
+      <AppProvider user={user}>
+        <MainContent user={user} onLogout={() => setUser(null)} />
       </AppProvider>
     </ErrorBoundary>
   );
