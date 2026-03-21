@@ -96,7 +96,6 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <img src="/school-logo.png" alt="校徽" className="w-10 h-10 object-contain" />
           <h1 className="text-xl font-semibold text-slate-800">教学计划设置系统</h1>
         </div>
         <div className="flex items-center gap-4 text-sm">
