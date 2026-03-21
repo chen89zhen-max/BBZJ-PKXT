@@ -103,33 +103,39 @@ export function MatrixSchedule({ department }: { department: Department }) {
 
     // 排序逻辑：
     // 1. 同一专业
-    // 2. 同一班级名称（含复排）
-    // 3. 按年级排序
+    // 2. 按年级排序
+    // 3. 同一班级名称（含复排）的数字序号
     return filtered.sort((a, b) => {
-      // 1. 按专业 ID 排序
-      if (a.majorId !== b.majorId) {
-        return a.majorId.localeCompare(b.majorId);
+      // 1. 按专业名称排序
+      const majorNameA = state.majors.find(m => m.id === a.majorId)?.name || '';
+      const majorNameB = state.majors.find(m => m.id === b.majorId)?.name || '';
+      if (majorNameA !== majorNameB) {
+        return majorNameA.localeCompare(majorNameB, 'zh-CN');
       }
 
-      // 2. 提取基础班级名称（去除“（复排）”）
+      // 2. 按年级排序 (使用 grades 数组的顺序)
+      const gradeOrderA = state.grades.findIndex(g => g.id === a.gradeId);
+      const gradeOrderB = state.grades.findIndex(g => g.id === b.gradeId);
+      if (gradeOrderA !== gradeOrderB) {
+        return gradeOrderA - gradeOrderB;
+      }
+
+      // 3. 提取基础班级名称（去除“（复排）”）用于比较
       const baseNameA = a.name.replace('（复排）', '');
       const baseNameB = b.name.replace('（复排）', '');
-      
-      if (baseNameA !== baseNameB) {
-        return baseNameA.localeCompare(baseNameB, 'zh-CN');
+
+      // 4. 提取班级名称中的数字部分进行数值排序
+      const numA = parseInt(baseNameA.match(/\d+/)?.[0] || '0', 10);
+      const numB = parseInt(baseNameB.match(/\d+/)?.[0] || '0', 10);
+
+      if (numA !== numB) {
+        return numA - numB;
       }
 
-      // 3. 基础名称相同，按年级排序
-      if (a.gradeId !== b.gradeId) {
-        const gradeA = state.grades.find(g => g.id === a.gradeId)?.name || '';
-        const gradeB = state.grades.find(g => g.id === b.gradeId)?.name || '';
-        return gradeA.localeCompare(gradeB, 'zh-CN');
-      }
-
-      // 4. 年级也相同，复排班级排在后面
+      // 5. 如果基础名称和数字都相同，复排班级排在后面
       return a.name.includes('（复排）') ? 1 : -1;
     });
-  }, [state.classes, state.grades, deptMajorIds, selectedGradeId, selectedMajorId, department]);
+  }, [state.classes, state.grades, state.majors, deptMajorIds, selectedGradeId, selectedMajorId, department]);
 
   // 获取带年级前缀的班级名称
   const getFullClassName = (c: any) => {
