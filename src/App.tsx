@@ -4,7 +4,6 @@ import { MatrixSchedule } from './components/MatrixSchedule';
 import { TeacherWorkload } from './components/TeacherWorkload';
 import { Settings } from './components/Settings';
 import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle, Menu, ChevronLeft } from 'lucide-react';
-import schoolLogo from './assets/school-logo.png';
 
 // 欢迎页动画组件
 function WelcomeScreen({ onComplete }: { onComplete: () => void }) {
@@ -15,7 +14,7 @@ function WelcomeScreen({ onComplete }: { onComplete: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-100 animate-fade-out">
-      <img src={schoolLogo} alt="校徽" className="w-48 h-48 mb-6" />
+      <img src="/school-logo.png" alt="校徽" className="w-48 h-48 mb-6" />
       <h1 className="text-4xl font-semibold text-slate-800" style={{ fontFamily: "'Dancing Script', cursive" }}>重庆市北碚职业教育中心</h1>
       <div className="absolute bottom-8 text-slate-500 opacity-70">
         @ChenZhen
@@ -114,7 +113,7 @@ function MainContent() {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <img src={schoolLogo} alt="校徽" className="w-10 h-10 object-contain" />
+          <img src="/school-logo.png" alt="校徽" className="w-10 h-10 object-contain" />
           <h1 className="text-xl font-semibold text-slate-800">教学计划设置系统</h1>
         </div>
         <div className="flex items-center gap-2 text-sm">
