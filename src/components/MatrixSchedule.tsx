@@ -101,21 +101,32 @@ export function MatrixSchedule({ department }: { department: Department }) {
       (selectedMajorId === 'all' || c.majorId === selectedMajorId)
     );
 
-    // 排序逻辑：先按专业，再按班级名称（处理复排）
+    // 排序逻辑：
+    // 1. 同一专业
+    // 2. 同一班级名称（含复排）
+    // 3. 按年级排序
     return filtered.sort((a, b) => {
-      // 获取年级名称用于前缀显示
-      const gradeA = state.grades.find(g => g.id === a.gradeId)?.name || '';
-      const gradeB = state.grades.find(g => g.id === b.gradeId)?.name || '';
-      
-      // 排序逻辑：
-      // 1. 提取基础班级名称（去除“（复排）”）
+      // 1. 按专业 ID 排序
+      if (a.majorId !== b.majorId) {
+        return a.majorId.localeCompare(b.majorId);
+      }
+
+      // 2. 提取基础班级名称（去除“（复排）”）
       const baseNameA = a.name.replace('（复排）', '');
       const baseNameB = b.name.replace('（复排）', '');
       
       if (baseNameA !== baseNameB) {
         return baseNameA.localeCompare(baseNameB, 'zh-CN');
       }
-      // 2. 如果基础名称相同，复排班级排在后面
+
+      // 3. 基础名称相同，按年级排序
+      if (a.gradeId !== b.gradeId) {
+        const gradeA = state.grades.find(g => g.id === a.gradeId)?.name || '';
+        const gradeB = state.grades.find(g => g.id === b.gradeId)?.name || '';
+        return gradeA.localeCompare(gradeB, 'zh-CN');
+      }
+
+      // 4. 年级也相同，复排班级排在后面
       return a.name.includes('（复排）') ? 1 : -1;
     });
   }, [state.classes, state.grades, deptMajorIds, selectedGradeId, selectedMajorId, department]);
