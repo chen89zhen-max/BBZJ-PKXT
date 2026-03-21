@@ -95,12 +95,36 @@ export function MatrixSchedule({ department }: { department: Department }) {
 
   // Filter classes for this department and selected grade
   const classes = useMemo(() => {
-    return state.classes.filter(c => 
+    const filtered = state.classes.filter(c => 
       deptMajorIds.has(c.majorId) && 
       (selectedGradeId === 'all' || c.gradeId === selectedGradeId) &&
       (selectedMajorId === 'all' || c.majorId === selectedMajorId)
     );
-  }, [state.classes, deptMajorIds, selectedGradeId, selectedMajorId, department]);
+
+    // 排序逻辑：先按专业，再按班级名称（处理复排）
+    return filtered.sort((a, b) => {
+      // 获取年级名称用于前缀显示
+      const gradeA = state.grades.find(g => g.id === a.gradeId)?.name || '';
+      const gradeB = state.grades.find(g => g.id === b.gradeId)?.name || '';
+      
+      // 排序逻辑：
+      // 1. 提取基础班级名称（去除“（复排）”）
+      const baseNameA = a.name.replace('（复排）', '');
+      const baseNameB = b.name.replace('（复排）', '');
+      
+      if (baseNameA !== baseNameB) {
+        return baseNameA.localeCompare(baseNameB, 'zh-CN');
+      }
+      // 2. 如果基础名称相同，复排班级排在后面
+      return a.name.includes('（复排）') ? 1 : -1;
+    });
+  }, [state.classes, state.grades, deptMajorIds, selectedGradeId, selectedMajorId, department]);
+
+  // 获取带年级前缀的班级名称
+  const getFullClassName = (c: any) => {
+    const grade = state.grades.find(g => g.id === c.gradeId)?.name || '';
+    return `${grade}${c.name}`;
+  };
 
   // Filter subjects: public courses + professional courses for this department
   const filteredSubjects = useMemo(() => {
@@ -397,7 +421,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
                   <th colSpan={3} className="border border-slate-300 p-2 bg-slate-200 font-semibold sticky left-0 z-30 w-[320px]">班级</th>
                   {classes.map(c => (
                     <th key={c.id} colSpan={2} className="border border-slate-300 p-2 font-bold text-slate-800 bg-slate-100">
-                      {c.name}
+                      {getFullClassName(c)}
                     </th>
                   ))}
                 </tr>
