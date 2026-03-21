@@ -554,6 +554,12 @@ export function Settings() {
                         <div className="space-y-3 text-sm">
                           <div className="grid grid-cols-2 gap-2">
                             <div>
+                              <label className="block text-xs text-slate-500 mb-1">所属专业</label>
+                              <select value={classForm.majorId || ''} onChange={e => setClassForm({...classForm, majorId: e.target.value})} className="w-full px-2 py-1 border rounded">
+                                {state.majors.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                              </select>
+                            </div>
+                            <div>
                               <label className="block text-xs text-slate-500 mb-1">班级名称</label>
                               <input type="text" value={classForm.name || ''} onChange={e => setClassForm({...classForm, name: e.target.value})} className="w-full px-2 py-1 border rounded" />
                             </div>
