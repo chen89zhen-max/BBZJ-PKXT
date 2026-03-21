@@ -177,6 +177,7 @@ async function startServer() {
   loadState();
   await setupAdmin();
   const app = express();
+  app.set('trust proxy', 1);
   app.use(cookieParser());
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
@@ -327,19 +328,21 @@ async function startServer() {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
+    const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
     res.cookie('token', token, { 
       httpOnly: true, 
-      secure: true, 
-      sameSite: 'none' 
+      secure: isSecure, 
+      sameSite: isSecure ? 'none' : 'lax' 
     });
     res.json({ user: { id: user.id, username: user.username, role: user.role, departmentIds: user.departmentIds } });
   });
 
   app.post('/api/logout', (req, res) => {
+    const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
     res.clearCookie('token', {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none'
+      secure: isSecure,
+      sameSite: isSecure ? 'none' : 'lax'
     });
     res.json({ message: 'Logged out' });
   });
