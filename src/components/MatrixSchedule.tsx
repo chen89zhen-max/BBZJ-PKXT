@@ -1,14 +1,60 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppContext } from '../context';
-import { Department, Grade, Major, Class, Subject, Teacher } from '../types';
+import { Department, Grade, Major, Class, Subject, Teacher, Schedule } from '../types';
 import { SearchableTeacherSelect } from './SearchableTeacherSelect';
-import { Download, Trash2, Maximize, Minimize } from 'lucide-react';
+import { Download, Trash2, Maximize, Minimize, Save, X } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { ConfirmModal } from './ConfirmModal';
 import { PromptModal } from './PromptModal';
 
+// Memoized Cell Component to prevent unnecessary re-renders
+const ScheduleCell = memo(({ 
+  classId, 
+  subjectId, 
+  teacherId, 
+  hours, 
+  isModified, 
+  teachers, 
+  onChange 
+}: { 
+  classId: string, 
+  subjectId: string, 
+  teacherId: string, 
+  hours: number | string, 
+  isModified: boolean, 
+  teachers: Teacher[], 
+  onChange: (classId: string, subjectId: string, field: 'teacherId' | 'hours', value: string | number) => void 
+}) => {
+  return (
+    <React.Fragment>
+      <td className={`border border-slate-300 p-0 relative group ${isModified ? 'bg-amber-50/50' : ''}`}>
+        <SearchableTeacherSelect
+          value={teacherId}
+          onChange={(val) => onChange(classId, subjectId, 'teacherId', val)}
+          teachers={teachers}
+          placeholder=""
+          className="h-full"
+          buttonClassName={`w-full h-full min-h-[40px] px-2 py-1 bg-transparent border-none outline-none focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500 text-center cursor-pointer group-hover:bg-indigo-50/50 transition-colors flex items-center justify-center ${isModified ? 'text-amber-700 font-medium' : ''}`}
+          hideChevron
+        />
+      </td>
+      <td className={`border border-slate-300 p-0 relative group ${isModified ? 'bg-amber-50/50' : ''}`}>
+        <input
+          type="number"
+          min="0"
+          value={hours}
+          onChange={(e) => onChange(classId, subjectId, 'hours', parseInt(e.target.value) || 0)}
+          className={`w-full h-full min-h-[40px] px-1 py-1 bg-transparent border-none outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 text-center group-hover:bg-indigo-50/50 transition-colors ${isModified ? 'text-amber-700 font-medium' : ''}`}
+        />
+      </td>
+    </React.Fragment>
+  );
+});
+
+ScheduleCell.displayName = 'ScheduleCell';
+
 export function MatrixSchedule({ department }: { department: Department }) {
-  const { state, updateSchedule, clearDepartmentSchedules } = useAppContext();
+  const { state, batchUpdateSchedules, clearDepartmentSchedules } = useAppContext();
   
   const [selectedGradeId, setSelectedGradeId] = useState<string>('all');
   const [selectedMajorId, setSelectedMajorId] = useState<string>('all');
@@ -17,6 +63,19 @@ export function MatrixSchedule({ department }: { department: Department }) {
   const [showConfirmClear, setShowConfirmClear] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{title: string, message: string, type: 'danger' | 'warning' | 'info'} | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Local state for pending edits
+  const [pendingSchedules, setPendingSchedules] = useState<Record<string, { teacherId: string, hours: number }>>({});
+  const hasPendingChanges = Object.keys(pendingSchedules).length > 0;
+
+  // Create a lookup map for faster access to schedules
+  const scheduleMap = useMemo(() => {
+    const map: Record<string, Schedule> = {};
+    state.schedules.forEach(s => {
+      map[`${s.classId}-${s.subjectId}`] = s;
+    });
+    return map;
+  }, [state.schedules]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -31,7 +90,8 @@ export function MatrixSchedule({ department }: { department: Department }) {
 
   // Filter majors for this department
   const deptMajors = useMemo(() => state.majors.filter(m => m.departmentId === department.id), [state.majors, department.id]);
-  const deptMajorIds = new Set(deptMajors.map(m => m.id));
+  
+  const deptMajorIds = useMemo(() => new Set(deptMajors.map(m => m.id)), [deptMajors]);
 
   // Filter classes for this department and selected grade
   const classes = useMemo(() => {
@@ -40,7 +100,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
       (selectedGradeId === 'all' || c.gradeId === selectedGradeId) &&
       (selectedMajorId === 'all' || c.majorId === selectedMajorId)
     );
-  }, [state.classes, deptMajorIds, selectedGradeId, selectedMajorId]);
+  }, [state.classes, deptMajorIds, selectedGradeId, selectedMajorId, department]);
 
   // Filter subjects: public courses + professional courses for this department
   const filteredSubjects = useMemo(() => {
@@ -70,21 +130,59 @@ export function MatrixSchedule({ department }: { department: Department }) {
     });
   }, [state.subjects, department.id, department.name]);
 
-  // Handle cell updates
-  const handleCellChange = (classId: string, subjectId: string, field: 'teacherId' | 'hours', value: string | number) => {
-    const existing = state.schedules.find(s => s.classId === classId && s.subjectId === subjectId);
+  // Handle cell updates - Memoized to prevent cell re-renders
+  const handleCellChange = useCallback((classId: string, subjectId: string, field: 'teacherId' | 'hours', value: string | number) => {
+    const key = `${classId}-${subjectId}`;
     
-    let teacherId = existing?.teacherId || '';
-    let hours = existing?.hours || 0;
+    setPendingSchedules(prev => {
+      const existingGlobal = scheduleMap[key];
+      const existingPending = prev[key];
+      
+      let teacherId = existingPending ? existingPending.teacherId : (existingGlobal?.teacherId || '');
+      let hours = existingPending ? existingPending.hours : (existingGlobal?.hours || 0);
 
-    if (field === 'teacherId') {
-      teacherId = value as string;
-      if (teacherId && hours === 0) hours = 2; // Default to 2 hours if just assigned a teacher
-    } else {
-      hours = value as number;
-    }
+      if (field === 'teacherId') {
+        teacherId = value as string;
+        if (teacherId && hours === 0) hours = 2; // Default to 2 hours if just assigned a teacher
+      } else {
+        hours = value as number;
+      }
 
-    updateSchedule(classId, subjectId, teacherId, hours);
+      // Check if it matches global state
+      const matchesGlobal = (existingGlobal?.teacherId || '') === teacherId && (existingGlobal?.hours || 0) === hours;
+
+      const next = { ...prev };
+      if (matchesGlobal) {
+        delete next[key];
+      } else {
+        next[key] = { teacherId, hours };
+      }
+      return next;
+    });
+  }, [scheduleMap]);
+
+  const handleSaveChanges = () => {
+    const updates = Object.entries(pendingSchedules).map(([key, data]) => {
+      const [classId, subjectId] = key.split('-');
+      return {
+        classId,
+        subjectId,
+        teacherId: data.teacherId,
+        hours: data.hours
+      };
+    });
+    
+    batchUpdateSchedules(updates);
+    setPendingSchedules({});
+    setAlertMessage({
+      title: '保存成功',
+      message: '排课修改已成功保存。',
+      type: 'info'
+    });
+  };
+
+  const handleDiscardChanges = () => {
+    setPendingSchedules({});
   };
 
   const handleClearSchedules = () => {
@@ -150,7 +248,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
     aoa.push(row4);
 
     // Row 5: 班主任
-    const row5 = ['班主任', '', ''];
+    const row5: any[] = ['班主任', '', ''];
     classes.forEach(c => {
       const headTeacher = state.teachers.find(t => t.id === c.headTeacherId);
       row5.push(headTeacher?.name || '');
@@ -160,94 +258,112 @@ export function MatrixSchedule({ department }: { department: Department }) {
 
     // Row 6: Headers
     const row6 = ['序号', '科目', '总课时'];
-    classes.forEach(c => {
+    classes.forEach(() => {
       row6.push('任课教师');
-      row6.push('课时数');
+      row6.push('课时');
     });
     aoa.push(row6);
 
     // Data rows
     filteredSubjects.forEach((subject, index) => {
-      const totalHours = classes.reduce((sum, c) => {
-        const sch = state.schedules.find(s => s.classId === c.id && s.subjectId === subject.id);
-        return sum + (sch?.hours || 0);
-      }, 0);
-
-      const row = [index + 1, subject.name, totalHours || ''];
+      const row = [index + 1, subject.name];
+      
+      let totalHours = 0;
+      const classData: any[] = [];
+      
       classes.forEach(c => {
-        const schedule = state.schedules.find(s => s.classId === c.id && s.subjectId === subject.id);
-        if (schedule && schedule.teacherId) {
-          const teacher = state.teachers.find(t => t.id === schedule.teacherId);
-          row.push(teacher?.name || '');
-          row.push(schedule.hours || '');
-        } else {
-          row.push('');
-          row.push('');
-        }
+        const key = `${c.id}-${subject.id}`;
+        const existingGlobal = scheduleMap[key];
+        const pending = pendingSchedules[key];
+        
+        const teacherId = pending ? pending.teacherId : (existingGlobal?.teacherId || '');
+        const hours = pending ? pending.hours : (existingGlobal?.hours || 0);
+        
+        const teacher = state.teachers.find(t => t.id === teacherId);
+        classData.push(teacher?.name || '');
+        classData.push(hours || '');
+        totalHours += (hours || 0);
       });
-      aoa.push(row);
+
+      row.push(totalHours || '');
+      aoa.push([...row, ...classData]);
     });
 
     const ws = xlsx.utils.aoa_to_sheet(aoa);
-
-    // Add merges
-    const merges = [];
-    // Merge A1:C1, A2:C2, A3:C3, A4:C4, A5:C5
-    for (let r = 0; r < 5; r++) {
-      merges.push({ s: { r: r, c: 0 }, e: { r: r, c: 2 } });
-    }
-
-    // Merge class columns in rows 1-5
-    classes.forEach((c, i) => {
-      const startCol = 3 + i * 2;
-      for (let r = 0; r < 5; r++) {
-        merges.push({ s: { r: r, c: startCol }, e: { r: r, c: startCol + 1 } });
+    
+    // Merge cells for headers
+    const merges: xlsx.Range[] = [];
+    // Merge class, type, classroom, studentCount, headTeacher headers
+    for (let i = 0; i < 5; i++) {
+      merges.push({ s: { r: i, c: 0 }, e: { r: i, c: 2 } });
+      for (let j = 0; j < classes.length; j++) {
+        merges.push({ s: { r: i, c: 3 + j * 2 }, e: { r: i, c: 4 + j * 2 } });
       }
-    });
-
+    }
     ws['!merges'] = merges;
 
-    // Set column widths for better readability
-    const colWidths = [
-      { wch: 6 },  // 序号
-      { wch: 20 }, // 科目
-      { wch: 8 },  // 总课时
-    ];
-    classes.forEach(() => {
-      colWidths.push({ wch: 15 }); // 任课教师
-      colWidths.push({ wch: 8 });  // 课时数
-    });
-    ws['!cols'] = colWidths;
-
     const wb = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(wb, ws, '排课记录');
-    
-    const fileName = `${department.name}_排课记录_${new Date().toISOString().split('T')[0]}.xlsx`;
-    xlsx.writeFile(wb, fileName);
+    xlsx.utils.book_append_sheet(wb, ws, '排课表');
+    xlsx.writeFile(wb, `${department.name}排课表.xlsx`);
   };
 
-  if (state.grades.length === 0) {
-    return <div>请先添加年级数据</div>;
-  }
-
   return (
-    <div className={`space-y-4 ${isFullscreen ? 'fixed inset-0 z-50 bg-slate-50 p-6 overflow-auto' : ''}`}>
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">{department.name} - 排课矩阵</h2>
-          <p className="text-sm text-slate-500 mt-1">全局掌控各班级、各科目的排课情况</p>
+    <div className={`flex flex-col bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden ${isFullscreen ? 'fixed inset-0 z-[100] rounded-none' : 'h-full'}`}>
+      {/* Header */}
+      <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-4 shrink-0">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-bold text-slate-800">【{department.name}】排课矩阵</h2>
+          
+          <div className="flex items-center gap-2">
+            <select 
+              value={selectedGradeId}
+              onChange={(e) => setSelectedGradeId(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            >
+              <option value="all">所有年级</option>
+              {state.grades.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+
+            <select 
+              value={selectedMajorId}
+              onChange={(e) => setSelectedMajorId(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            >
+              <option value="all">所有专业</option>
+              {deptMajors.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        
+
         <div className="flex items-center gap-4">
           {/* Actions */}
           <div className="flex items-center gap-2">
+            {hasPendingChanges && (
+              <>
+                <button 
+                  onClick={handleSaveChanges}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white border border-indigo-700 rounded-md hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm"
+                >
+                  <Save className="w-4 h-4" /> 保存修改
+                </button>
+                <button 
+                  onClick={handleDiscardChanges}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-600 border border-slate-300 rounded-md hover:bg-slate-200 transition-colors text-sm font-medium"
+                >
+                  <X className="w-4 h-4" /> 取消
+                </button>
+                <div className="w-px h-6 bg-slate-200 mx-1"></div>
+              </>
+            )}
             <button 
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="flex items-center gap-1 px-3 py-1.5 bg-slate-50 text-slate-700 border border-slate-200 rounded-md hover:bg-slate-100 transition-colors text-sm font-medium"
-              title={isFullscreen ? "退出全屏 (ESC)" : "全屏排课"}
             >
-              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-              {isFullscreen ? '退出全屏' : '全屏排课'}
+              {isFullscreen ? <><Minimize className="w-4 h-4" /> 退出全屏</> : <><Maximize className="w-4 h-4" /> 全屏排课</>}
             </button>
             <button 
               onClick={handleExportExcel}
@@ -262,50 +378,23 @@ export function MatrixSchedule({ department }: { department: Department }) {
               <Trash2 className="w-4 h-4" /> 清空排课
             </button>
           </div>
-
-          {/* Filters */}
-          <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
-            <label className="text-sm font-medium text-slate-600 pl-2">年级:</label>
-            <select 
-              value={selectedGradeId} 
-              onChange={e => setSelectedGradeId(e.target.value)}
-              className="border-none bg-slate-50 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-            >
-              <option value="all">全部年级</option>
-              {state.grades.map(g => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-            
-            <div className="w-px h-6 bg-slate-200 mx-1"></div>
-            
-            <label className="text-sm font-medium text-slate-600 pl-2">专业:</label>
-            <select 
-              value={selectedMajorId} 
-              onChange={e => setSelectedMajorId(e.target.value)}
-              className="border-none bg-slate-50 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none max-w-[200px]"
-            >
-              <option value="all">全部专业</option>
-              {deptMajors.map(m => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-          </div>
         </div>
       </div>
 
+      {/* Matrix Table */}
       {classes.length === 0 ? (
-        <div className="bg-white p-12 text-center rounded-xl border border-slate-200 shadow-sm text-slate-500">
-          该年级下暂无班级数据。
+        <div className="flex-1 flex flex-col items-center justify-center p-12 text-slate-400">
+          <p className="text-lg">该筛选条件下没有班级</p>
+          <p className="text-sm">请尝试更改年级或专业筛选条件</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto max-h-[70vh]">
-            <table className="min-w-full border-collapse text-sm text-center">
-              <thead className="bg-slate-100 sticky top-0 z-20 shadow-sm">
+        <div className="flex-1 overflow-auto bg-slate-100 p-4">
+          <div className="bg-white rounded border border-slate-300 shadow-sm inline-block min-w-full">
+            <table className="w-full border-collapse border border-slate-300 min-w-max">
+              <thead className="sticky top-0 z-40 bg-slate-50">
                 {/* Row 1: 班级 */}
                 <tr>
-                  <th colSpan={3} className="border border-slate-300 p-2 bg-slate-200 font-semibold sticky left-0 z-30">班级</th>
+                  <th colSpan={3} className="border border-slate-300 p-2 bg-slate-200 font-semibold sticky left-0 z-30 w-[320px]">班级</th>
                   {classes.map(c => (
                     <th key={c.id} colSpan={2} className="border border-slate-300 p-2 font-bold text-slate-800 bg-slate-100">
                       {c.name}
@@ -368,8 +457,11 @@ export function MatrixSchedule({ department }: { department: Department }) {
                 {filteredSubjects.map((subject, index) => {
                   // Calculate total hours for this subject across currently shown classes
                   const totalHours = classes.reduce((sum, c) => {
-                    const sch = state.schedules.find(s => s.classId === c.id && s.subjectId === subject.id);
-                    return sum + (sch?.hours || 0);
+                    const key = `${c.id}-${subject.id}`;
+                    const existingGlobal = scheduleMap[key];
+                    const pending = pendingSchedules[key];
+                    const hours = pending ? pending.hours : (existingGlobal?.hours || 0);
+                    return sum + hours;
                   }, 0);
 
                   return (
@@ -379,31 +471,25 @@ export function MatrixSchedule({ department }: { department: Department }) {
                       <td className="border border-slate-300 p-2 sticky left-[256px] bg-white z-10 font-bold text-indigo-600">{totalHours > 0 ? totalHours : ''}</td>
                       
                       {classes.map(c => {
-                        const schedule = state.schedules.find(s => s.classId === c.id && s.subjectId === subject.id);
+                        const key = `${c.id}-${subject.id}`;
+                        const existingGlobal = scheduleMap[key];
+                        const pending = pendingSchedules[key];
+                        
+                        const teacherId = pending ? pending.teacherId : (existingGlobal?.teacherId || '');
+                        const hours = pending ? pending.hours : (existingGlobal?.hours || '');
+                        const isModified = !!pending;
                         
                         return (
-                          <React.Fragment key={`${c.id}-${subject.id}`}>
-                            <td className="border border-slate-300 p-0 relative group">
-                              <SearchableTeacherSelect
-                                value={schedule?.teacherId || ''}
-                                onChange={(val) => handleCellChange(c.id, subject.id, 'teacherId', val)}
-                                teachers={state.teachers}
-                                placeholder=""
-                                className="h-full"
-                                buttonClassName="w-full h-full min-h-[40px] px-2 py-1 bg-transparent border-none outline-none focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500 text-center cursor-pointer group-hover:bg-indigo-50/50 transition-colors flex items-center justify-center"
-                                hideChevron
-                              />
-                            </td>
-                            <td className="border border-slate-300 p-0 relative group">
-                              <input
-                                type="number"
-                                min="0"
-                                value={schedule?.hours || ''}
-                                onChange={(e) => handleCellChange(c.id, subject.id, 'hours', parseInt(e.target.value) || 0)}
-                                className="w-full h-full min-h-[40px] px-1 py-1 bg-transparent border-none outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 text-center group-hover:bg-indigo-50/50 transition-colors"
-                              />
-                            </td>
-                          </React.Fragment>
+                          <ScheduleCell
+                            key={`${c.id}-${subject.id}`}
+                            classId={c.id}
+                            subjectId={subject.id}
+                            teacherId={teacherId}
+                            hours={hours}
+                            isModified={isModified}
+                            teachers={state.teachers}
+                            onChange={handleCellChange}
+                          />
                         );
                       })}
                     </tr>

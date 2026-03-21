@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 interface AppContextType {
   state: AppState;
   updateSchedule: (classId: string, subjectId: string, teacherId: string, hours: number) => void;
+  batchUpdateSchedules: (updates: { classId: string, subjectId: string, teacherId: string, hours: number }[]) => void;
   
   // Departments
   addDepartment: (name: string) => void;
@@ -110,6 +111,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } else if (teacherId && hours > 0) {
       newSchedules.push({ id: uuidv4(), classId, subjectId, teacherId, hours });
     }
+
+    broadcastState({ ...state, schedules: newSchedules });
+  };
+
+  const batchUpdateSchedules = (updates: { classId: string, subjectId: string, teacherId: string, hours: number }[]) => {
+    let newSchedules = [...state.schedules];
+    
+    updates.forEach(update => {
+      const { classId, subjectId, teacherId, hours } = update;
+      const existingIndex = newSchedules.findIndex(s => s.classId === classId && s.subjectId === subjectId);
+      
+      if (existingIndex >= 0) {
+        if (!teacherId || hours <= 0) {
+          newSchedules.splice(existingIndex, 1);
+        } else {
+          newSchedules[existingIndex] = { ...newSchedules[existingIndex], teacherId, hours };
+        }
+      } else if (teacherId && hours > 0) {
+        newSchedules.push({ id: uuidv4(), classId, subjectId, teacherId, hours });
+      }
+    });
 
     broadcastState({ ...state, schedules: newSchedules });
   };
@@ -289,6 +311,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       value={{
         state,
         updateSchedule,
+        batchUpdateSchedules,
         addDepartment,
         updateDepartment,
         deleteDepartment,

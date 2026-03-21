@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Teacher } from '../types';
 import { Search, ChevronDown } from 'lucide-react';
@@ -26,33 +26,42 @@ export function SearchableTeacherSelect({
   const [searchTerm, setSearchTerm] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
 
   const selectedTeacher = teachers.find(t => t.id === value);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isOpen && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownHeight = 250; // Approximate max height
+      const dropdownHeight = 280; // Approximate max height
       
       let top = rect.bottom + window.scrollY;
+      let placement: 'bottom' | 'top' = 'bottom';
+
       if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
         // Show above if not enough space below and enough space above
         top = rect.top + window.scrollY - dropdownHeight;
+        placement = 'top';
       }
 
       setDropdownStyle({
         position: 'absolute',
         top: `${top}px`,
         left: `${rect.left + window.scrollX}px`,
-        width: '256px', // w-64
+        width: `${Math.max(rect.width, 256)}px`,
         zIndex: 9999,
+        visibility: 'visible',
+        transformOrigin: placement === 'top' ? 'bottom' : 'top',
       });
+    } else {
+      setDropdownStyle({ visibility: 'hidden' });
     }
   }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleClickOutside = (event: MouseEvent) => {
       if (
         containerRef.current && !containerRef.current.contains(event.target as Node) &&
@@ -62,7 +71,12 @@ export function SearchableTeacherSelect({
       }
     };
 
+    // Use a small timeout before enabling scroll-close to avoid closing on initial focus-scroll
+    let scrollEnabled = false;
+    const timer = setTimeout(() => { scrollEnabled = true; }, 300);
+
     const handleScroll = (event: Event) => {
+      if (!scrollEnabled) return;
       // Don't close if scrolling inside the dropdown itself
       if (dropdownRef.current && dropdownRef.current.contains(event.target as Node)) {
         return;
@@ -71,13 +85,14 @@ export function SearchableTeacherSelect({
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('scroll', handleScroll, true); // Use capture phase to catch all scrolls
+    window.addEventListener('scroll', handleScroll, true);
 
     return () => {
+      clearTimeout(timer);
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('scroll', handleScroll, true);
     };
-  }, []);
+  }, [isOpen]);
 
   const filteredTeachers = teachers.filter(t => 
     t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -88,7 +103,10 @@ export function SearchableTeacherSelect({
     <div className={`relative ${className}`} ref={containerRef}>
       <div 
         className={buttonClassName}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
       >
         <span className={`truncate ${selectedTeacher ? "text-slate-800" : "text-slate-400"}`}>
           {selectedTeacher ? `${selectedTeacher.name} ${selectedTeacher.idCard ? `(${selectedTeacher.idCard.slice(-4)})` : ''}` : placeholder}
@@ -99,7 +117,7 @@ export function SearchableTeacherSelect({
       {isOpen && createPortal(
         <div 
           ref={dropdownRef}
-          className="bg-white border border-slate-200 rounded-md shadow-xl flex flex-col" 
+          className="bg-white border border-slate-200 rounded-md shadow-xl flex flex-col animate-in fade-in zoom-in duration-100" 
           style={dropdownStyle}
         >
           <div className="p-2 border-b border-slate-100 bg-slate-50 rounded-t-md">
