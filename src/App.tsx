@@ -237,7 +237,11 @@ export default function App() {
         setLoading(false);
       })
       .catch((err) => {
-        console.error('Auth check failed:', err);
+        if (err.message === 'Not authenticated') {
+          console.log('User is not authenticated. Redirecting to login.');
+        } else {
+          console.error('Auth check failed:', err);
+        }
         setUser(null);
         setLoading(false);
       });
