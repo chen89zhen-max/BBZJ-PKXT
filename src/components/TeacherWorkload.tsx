@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context';
-import { Users, BookOpen, Clock, Filter, Search, Download } from 'lucide-react';
+import { Users, BookOpen, Clock, Filter, Search, Download, BarChart2 } from 'lucide-react';
 import * as xlsx from 'xlsx';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const calculateAge = (idCard?: string) => {
   if (!idCard || idCard.length !== 18) return null;
@@ -25,6 +26,7 @@ export function TeacherWorkload() {
   const [selectedAgeRange, setSelectedAgeRange] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [showDashboard, setShowDashboard] = useState<boolean>(false);
 
   const workloadData = useMemo(() => {
     let filteredTeachers = state.teachers;
@@ -113,6 +115,52 @@ export function TeacherWorkload() {
     state.teachers.forEach(t => subs.add(t.primarySubject || '未分配'));
     return Array.from(subs).sort();
   }, [state.teachers]);
+
+  // Dashboard calculations
+  const dashboardData = useMemo(() => {
+    const activeTeachers = workloadData.filter(t => t.totalHours > 0);
+    const avgSchoolWorkload = activeTeachers.length > 0 ? (activeTeachers.reduce((sum, t) => sum + t.totalHours, 0) / activeTeachers.length).toFixed(1) : '0.0';
+
+    const getStatsByGroup = (groupFn: (t: any) => string) => {
+      const groups: Record<string, { totalHours: number, count: number, subjects: Set<string> }> = {};
+      activeTeachers.forEach(t => {
+        const key = groupFn(t);
+        if (!groups[key]) groups[key] = { totalHours: 0, count: 0, subjects: new Set() };
+        groups[key].totalHours += t.totalHours;
+        groups[key].count += 1;
+        t.schedules.forEach(s => groups[key].subjects.add(s.subjectId));
+      });
+      
+      return Object.entries(groups).map(([name, data]) => ({
+        name,
+        avgWorkload: parseFloat((data.totalHours / data.count).toFixed(1)),
+        teacherCount: data.count,
+        courseCount: data.subjects.size
+      })).sort((a, b) => b.teacherCount - a.teacherCount);
+    };
+
+    const statsByDept = getStatsByGroup(t => t.department || '未分配');
+    const statsByGender = getStatsByGroup(t => t.gender || '未知');
+    const statsByAge = getStatsByGroup(t => {
+      const age = calculateAge(t.idCard);
+      if (age === null) return '未知';
+      if (age < 30) return '30岁以下';
+      if (age <= 40) return '30-40岁';
+      if (age <= 50) return '40-50岁';
+      return '50岁以上';
+    });
+
+    const totalCourses = new Set(activeTeachers.flatMap(t => t.schedules.map(s => s.subjectId))).size;
+
+    return {
+      activeTeachersCount: activeTeachers.length,
+      avgSchoolWorkload,
+      totalCourses,
+      statsByDept,
+      statsByGender,
+      statsByAge
+    };
+  }, [workloadData]);
 
   const handleExportExcel = () => {
     const data = workloadData.map(teacher => {
@@ -215,6 +263,13 @@ export function TeacherWorkload() {
           </select>
           
           <button
+            onClick={() => setShowDashboard(!showDashboard)}
+            className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-sm shadow-sm"
+          >
+            <BarChart2 className="w-4 h-4" />
+            {showDashboard ? '隐藏数据看板' : '显示数据看板'}
+          </button>
+          <button
             onClick={handleExportExcel}
             className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors text-sm shadow-sm"
           >
@@ -223,6 +278,80 @@ export function TeacherWorkload() {
           </button>
         </div>
       </div>
+
+      {showDashboard && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-8 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+              <p className="text-sm font-medium text-indigo-600">全校排课教师</p>
+              <p className="text-3xl font-bold text-indigo-900 mt-1">{dashboardData.activeTeachersCount} <span className="text-sm font-normal text-indigo-700">人</span></p>
+            </div>
+            <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100">
+              <p className="text-sm font-medium text-emerald-600">全校平均工作量</p>
+              <p className="text-3xl font-bold text-emerald-900 mt-1">{dashboardData.avgSchoolWorkload} <span className="text-sm font-normal text-emerald-700">课时/周</span></p>
+            </div>
+            <div className="bg-amber-50 p-4 rounded-lg border border-amber-100">
+              <p className="text-sm font-medium text-amber-600">全校任教课程总数</p>
+              <p className="text-3xl font-bold text-amber-900 mt-1">
+                {dashboardData.totalCourses} <span className="text-sm font-normal text-amber-700">门</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Dept Chart */}
+            <div className="h-80">
+              <h3 className="text-sm font-bold text-slate-700 mb-4 text-center">各产业部平均工作量与任教课程数</h3>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dashboardData.statsByDept} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="name" tick={{fontSize: 12}} />
+                  <YAxis yAxisId="left" orientation="left" stroke="#6366f1" />
+                  <YAxis yAxisId="right" orientation="right" stroke="#10b981" />
+                  <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                  <Legend />
+                  <Bar yAxisId="left" dataKey="avgWorkload" name="平均工作量 (课时)" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  <Bar yAxisId="right" dataKey="courseCount" name="任教课程数" fill="#10b981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Age Chart */}
+            <div className="h-80">
+              <h3 className="text-sm font-bold text-slate-700 mb-4 text-center">各年龄段平均工作量</h3>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dashboardData.statsByAge} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="name" tick={{fontSize: 12}} />
+                  <YAxis />
+                  <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                  <Legend />
+                  <Bar dataKey="avgWorkload" name="平均工作量 (课时)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="teacherCount" name="排课教师人数" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Gender Chart */}
+            <div className="h-80">
+              <h3 className="text-sm font-bold text-slate-700 mb-4 text-center">各性别平均工作量</h3>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dashboardData.statsByGender} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="name" tick={{fontSize: 12}} />
+                  <YAxis />
+                  <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                  <Legend />
+                  <Bar dataKey="avgWorkload" name="平均工作量 (课时)" fill="#ec4899" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="teacherCount" name="排课教师人数" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
