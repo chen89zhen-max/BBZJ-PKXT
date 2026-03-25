@@ -225,18 +225,27 @@ async function startServer() {
   });
 
   // API routes FIRST
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   function authorize(roles: string[]) {
     return (req: any, res: any, next: any) => {
-      const token = req.cookies.token;
-      if (!token) return res.status(401).json({ error: 'Not authenticated' });
+      console.log(`[Auth] ${req.method} ${req.path} - Cookies:`, req.cookies ? 'Present' : 'Missing', req.cookies);
+      const token = req.cookies?.token;
+      if (!token) {
+        console.log(`[Auth] No token found for ${req.method} ${req.path}`);
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
       try {
         const decoded = jwt.verify(token, JWT_SECRET) as any;
-        if (!roles.includes(decoded.role)) return res.status(403).json({ error: 'Forbidden' });
+        if (!roles.includes(decoded.role)) {
+          console.log(`[Auth] Forbidden for role ${decoded.role}`);
+          return res.status(403).json({ error: 'Forbidden' });
+        }
         req.user = decoded;
         next();
       } catch (err) {
+        console.log(`[Auth] Invalid token:`, err);
         res.status(401).json({ error: 'Invalid token' });
       }
     };
@@ -369,7 +378,7 @@ async function startServer() {
     res.json(state);
   });
 
-  app.post('/api/state/import', authorize(['SUPER_ADMIN']), (req, res) => {
+  app.post('/api/state/import', authorize(['SUPER_ADMIN', 'ADMIN']), (req, res) => {
     const newState = req.body;
     // Basic validation
     if (!newState.departments || !newState.teachers || !newState.schedules) {

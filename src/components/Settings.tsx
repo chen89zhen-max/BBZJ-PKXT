@@ -641,6 +641,7 @@ export function Settings() {
       const response = await fetch('/api/state/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(pendingBackupData)
       });
 
@@ -652,13 +653,14 @@ export function Settings() {
         });
         setTimeout(() => window.location.reload(), 2000);
       } else {
-        throw new Error('Import failed');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Import failed');
       }
-    } catch (err) {
+    } catch (err: any) {
       setImportResultModal({
         isOpen: true,
         title: '导入失败',
-        message: '服务器处理备份文件时出错，请检查文件内容。'
+        message: `服务器处理备份文件时出错：${err.message || '请检查文件内容'}`
       });
     }
     setShowImportBackupPrompt(false);
