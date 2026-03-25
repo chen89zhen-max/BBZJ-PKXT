@@ -57,6 +57,14 @@ export interface Schedule {
   hours: number;
 }
 
+export interface Archive {
+  id: string;
+  departmentId: string;
+  name: string;
+  timestamp: string;
+  schedules: Schedule[];
+}
+
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'USER';
 
 export interface User {
@@ -75,6 +83,7 @@ export interface AppState {
   teachers: Teacher[];
   subjects: Subject[];
   schedules: Schedule[];
+  archives: Archive[];
   classCategories: ClassCategory[];
   users: User[];
 }

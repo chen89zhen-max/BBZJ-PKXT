@@ -2,10 +2,11 @@ import React, { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppContext } from '../context';
 import { Department, Grade, Major, Class, Subject, Teacher, Schedule } from '../types';
 import { SearchableTeacherSelect } from './SearchableTeacherSelect';
-import { Download, Trash2, Maximize, Minimize, Save, X } from 'lucide-react';
+import { Download, Trash2, Maximize, Minimize, Save, X, History, Archive as ArchiveIcon } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { ConfirmModal } from './ConfirmModal';
 import { PromptModal } from './PromptModal';
+import { Archive } from '../types';
 
 // Memoized Cell Component to prevent unnecessary re-renders
   const ScheduleCell = memo(({ 
@@ -58,7 +59,7 @@ import { PromptModal } from './PromptModal';
 ScheduleCell.displayName = 'ScheduleCell';
 
 export function MatrixSchedule({ department }: { department: Department }) {
-  const { state, user, batchUpdateSchedules, clearDepartmentSchedules } = useAppContext();
+  const { state, user, batchUpdateSchedules, clearDepartmentSchedules, createArchive, restoreArchive, deleteArchive } = useAppContext();
   
   const canEdit = useMemo(() => {
     if (!user) return false;
@@ -74,6 +75,11 @@ export function MatrixSchedule({ department }: { department: Department }) {
   const [alertMessage, setAlertMessage] = useState<{title: string, message: string, type: 'danger' | 'warning' | 'info'} | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [newArchiveName, setNewArchiveName] = useState('');
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState<string | null>(null);
+  const [showDeleteArchiveConfirm, setShowDeleteArchiveConfirm] = useState<string | null>(null);
+
   // Local state for pending edits
   const [pendingSchedules, setPendingSchedules] = useState<Record<string, { teacherId: string, hours: number }>>({});
   const hasPendingChanges = Object.keys(pendingSchedules).length > 0;
@@ -377,6 +383,48 @@ export function MatrixSchedule({ department }: { department: Department }) {
     xlsx.writeFile(wb, `${department.name}排课表.xlsx`);
   };
 
+  const deptArchives = useMemo(() => {
+    return (state.archives || [])
+      .filter(a => a.departmentId === department.id)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [state.archives, department.id]);
+
+  const handleCreateArchive = () => {
+    if (!newArchiveName.trim()) {
+      setAlertMessage({
+        title: '提示',
+        message: '请输入存档名称，例如“2024-2025 第一学期最终版”',
+        type: 'warning'
+      });
+      return;
+    }
+    createArchive(department.id, newArchiveName.trim());
+    setNewArchiveName('');
+    setAlertMessage({
+      title: '存档成功',
+      message: `当前排课方案已成功存档为“${newArchiveName}”。`,
+      type: 'info'
+    });
+  };
+
+  const handleRestoreArchive = (archiveId: string) => {
+    const archive = state.archives.find(a => a.id === archiveId);
+    if (!archive) return;
+    restoreArchive(archiveId);
+    setShowRestoreConfirm(null);
+    setShowArchiveModal(false);
+    setAlertMessage({
+      title: '恢复成功',
+      message: `已成功恢复到存档“${archive.name}”的数据状态。`,
+      type: 'info'
+    });
+  };
+
+  const handleDeleteArchive = (archiveId: string) => {
+    deleteArchive(archiveId);
+    setShowDeleteArchiveConfirm(null);
+  };
+
   return (
     <div className={`flex flex-col bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden ${isFullscreen ? 'fixed inset-0 z-[100] rounded-none' : 'h-full'}`}>
       {/* Header */}
@@ -440,6 +488,12 @@ export function MatrixSchedule({ department }: { department: Department }) {
               className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors text-sm font-medium"
             >
               <Download className="w-4 h-4" /> 导出Excel
+            </button>
+            <button 
+              onClick={() => setShowArchiveModal(true)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors text-sm font-medium"
+            >
+              <History className="w-4 h-4" /> 存档/历史
             </button>
             {canEdit && (
               <button 
@@ -631,6 +685,113 @@ export function MatrixSchedule({ department }: { department: Department }) {
         confirmText="知道了"
         onConfirm={() => setAlertMessage(null)}
         onCancel={() => setAlertMessage(null)}
+      />
+
+      {/* Archive Modal */}
+      {showArchiveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <History className="w-5 h-5 text-indigo-600" /> 排课存档管理 - {department.name}
+              </h3>
+              <button onClick={() => setShowArchiveModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-auto flex-1">
+              {canEdit && (
+                <div className="mb-8 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                  <h4 className="text-sm font-bold text-indigo-800 mb-3">创建新存档</h4>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={newArchiveName}
+                      onChange={(e) => setNewArchiveName(e.target.value)}
+                      placeholder="输入存档名称，如：2024秋季学期初稿"
+                      className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                    <button 
+                      onClick={handleCreateArchive}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center gap-2"
+                    >
+                      <ArchiveIcon className="w-4 h-4" /> 存档当前排课
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-indigo-600">提示：每个产业部最多保留10个存档，超出后将自动覆盖最早的存档。</p>
+                </div>
+              )}
+
+              <h4 className="text-sm font-bold text-slate-700 mb-3">历史存档记录 ({deptArchives.length}/10)</h4>
+              {deptArchives.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-100 rounded-lg">
+                  暂无历史存档记录
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {deptArchives.map((archive) => (
+                    <div key={archive.id} className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-lg hover:border-indigo-200 transition-colors group">
+                      <div className="flex-1">
+                        <div className="font-bold text-slate-800">{archive.name}</div>
+                        <div className="text-xs text-slate-500 mt-1">
+                          存档时间：{new Date(archive.timestamp).toLocaleString('zh-CN')} | 
+                          包含记录：{archive.schedules.length} 条
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => setShowRestoreConfirm(archive.id)}
+                          className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors text-xs font-medium"
+                        >
+                          恢复此存档
+                        </button>
+                        {canEdit && (
+                          <button 
+                            onClick={() => setShowDeleteArchiveConfirm(archive.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
+                            title="删除存档"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex justify-end">
+              <button 
+                onClick={() => setShowArchiveModal(false)}
+                className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors text-sm font-medium"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={showRestoreConfirm !== null}
+        title="确认恢复存档"
+        message="恢复存档将覆盖当前该产业部的所有排课记录！建议在恢复前先对当前状态进行存档。您确定要继续吗？"
+        type="warning"
+        confirmText="确认恢复"
+        onConfirm={() => showRestoreConfirm && handleRestoreArchive(showRestoreConfirm)}
+        onCancel={() => setShowRestoreConfirm(null)}
+      />
+
+      <ConfirmModal
+        isOpen={showDeleteArchiveConfirm !== null}
+        title="确认删除存档"
+        message="您确定要永久删除这个历史存档吗？此操作不可撤销。"
+        type="danger"
+        confirmText="确认删除"
+        onConfirm={() => showDeleteArchiveConfirm && handleDeleteArchive(showDeleteArchiveConfirm)}
+        onCancel={() => setShowDeleteArchiveConfirm(null)}
       />
     </div>
   );

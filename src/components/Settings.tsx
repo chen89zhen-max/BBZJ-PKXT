@@ -1,11 +1,120 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context';
-import { Plus, Building2, UserCircle, BookOpen, Tags, Trash2, Edit2, Save, X, GraduationCap, Users, Upload, Download, ArrowUp, ArrowDown } from 'lucide-react';
-import { Class, SubjectType } from '../types';
+import { Plus, Building2, UserCircle, BookOpen, Tags, Trash2, Edit2, Save, X, GraduationCap, Users, Upload, Download, ArrowUp, ArrowDown, Search, GripVertical } from 'lucide-react';
+import { Class, SubjectType, Teacher, Subject } from '../types';
 import * as xlsx from 'xlsx';
 import { SearchableTeacherSelect } from './SearchableTeacherSelect';
 import { ConfirmModal } from './ConfirmModal';
 import { PromptModal } from './PromptModal';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+function SortableSubjectItem({ 
+  subject, 
+  isAdmin, 
+  user, 
+  state, 
+  canEdit, 
+  selectedSubjects, 
+  toggleSubjectSelection, 
+  startEditSubject, 
+  deleteSubject 
+}: { 
+  subject: Subject; 
+  isAdmin: boolean; 
+  user: any; 
+  state: any; 
+  canEdit: boolean; 
+  selectedSubjects: Set<string>; 
+  toggleSubjectSelection: (id: string) => void; 
+  startEditSubject: (s: Subject) => void; 
+  deleteSubject: (id: string) => void; 
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: subject.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : 1,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const isProfessional = subject.type === '中职专业课';
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      className={`flex flex-col bg-white px-3 py-2 rounded-lg border ${isDragging ? 'border-indigo-500 shadow-md' : 'border-slate-200'} text-sm gap-1 group`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {canEdit && (
+            <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600">
+              <GripVertical className="w-4 h-4" />
+            </div>
+          )}
+          {isAdmin && (
+            <input 
+              type="checkbox" 
+              checked={selectedSubjects.has(subject.id)} 
+              onChange={() => toggleSubjectSelection(subject.id)} 
+              className="cursor-pointer" 
+            />
+          )}
+          <span className="font-medium">{subject.name}</span>
+          <span className={`text-xs px-2 py-0.5 rounded-full ${subject.type === '中职专业课' ? 'bg-orange-100 text-orange-700' : subject.type.includes('综合高中') ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{subject.type}</span>
+        </div>
+        {canEdit && (
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button 
+              onClick={() => startEditSubject(subject)} 
+              className="text-slate-400 hover:text-indigo-600 p-1"
+              title="编辑"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+            <button 
+              onClick={() => deleteSubject(subject.id)} 
+              className="text-slate-400 hover:text-rose-600 p-1 ml-1"
+              title="删除"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+      {isProfessional && subject.departmentId && (
+        <div className="text-xs text-slate-500 flex gap-2 ml-6">
+          <span>产业部: {state.departments.find((d: any) => d.id === subject.departmentId)?.name || '未知'}</span>
+          {subject.majorId && <span>专业: {state.majors.find((m: any) => m.id === subject.majorId)?.name || '未知'}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Settings() {
   const { 
@@ -13,8 +122,8 @@ export function Settings() {
     addDepartment, updateDepartment, deleteDepartment,
     addMajor, updateMajor, deleteMajor,
     addClass, updateClass, deleteClass, deleteClasses, clearClasses, importClasses, importMajors,
-    addTeacher, addTeachers, deleteTeacher, deleteTeachers,
-    addSubject, addSubjects, deleteSubject, deleteSubjects, reorderSubject,
+    addTeacher, addTeachers, updateTeacher, deleteTeacher, deleteTeachers,
+    addSubject, addSubjects, updateSubject, deleteSubject, deleteSubjects, reorderSubject, updateSubjectsOrder,
     addClassCategory, deleteClassCategory,
     addGrade, deleteGrade,
     clearSchedules
@@ -41,6 +150,16 @@ export function Settings() {
   const [newSubjectMajorId, setNewSubjectMajorId] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newGradeName, setNewGradeName] = useState('');
+
+  // Search State
+  const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
+  const [subjectSearchQuery, setSubjectSearchQuery] = useState('');
+
+  // Edit State
+  const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
+  const [teacherForm, setTeacherForm] = useState<Partial<Teacher>>({});
+  const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
+  const [subjectForm, setSubjectForm] = useState<Partial<Subject>>({});
 
   // Batch Delete State
   const [selectedTeachers, setSelectedTeachers] = useState<Set<string>>(new Set());
@@ -73,6 +192,8 @@ export function Settings() {
 
   const [showClearClassesPrompt, setShowClearClassesPrompt] = useState(false);
   const [showClearSchedulesPrompt, setShowClearSchedulesPrompt] = useState(false);
+  const [showImportBackupPrompt, setShowImportBackupPrompt] = useState(false);
+  const [pendingBackupData, setPendingBackupData] = useState<any>(null);
 
   useEffect(() => {
     if (user?.role === 'USER' && user.departmentIds?.[0]) {
@@ -97,6 +218,14 @@ export function Settings() {
     .filter(d => user?.departmentIds?.includes(d.id))
     .map(d => d.name);
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+
+  // DND Sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Handlers
   const toggleTeacherSelection = (id: string) => {
@@ -160,6 +289,42 @@ export function Settings() {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
     });
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = state.subjects.findIndex(s => s.id === active.id);
+      const newIndex = state.subjects.findIndex(s => s.id === over.id);
+      
+      const newSubjects = arrayMove(state.subjects, oldIndex, newIndex);
+      updateSubjectsOrder(newSubjects);
+    }
+  };
+
+  const startEditTeacher = (teacher: Teacher) => {
+    setEditingTeacherId(teacher.id);
+    setTeacherForm(teacher);
+  };
+
+  const saveTeacher = () => {
+    if (editingTeacherId && teacherForm.name) {
+      updateTeacher({ ...teacherForm as Teacher, id: editingTeacherId });
+      setEditingTeacherId(null);
+    }
+  };
+
+  const startEditSubject = (subject: Subject) => {
+    setEditingSubjectId(subject.id);
+    setSubjectForm(subject);
+  };
+
+  const saveSubject = () => {
+    if (editingSubjectId && subjectForm.name) {
+      updateSubject({ ...subjectForm as Subject, id: editingSubjectId });
+      setEditingSubjectId(null);
+    }
   };
 
   const handleAddDept = (e: React.FormEvent) => {
@@ -427,6 +592,97 @@ export function Settings() {
     xlsx.writeFile(wb, '科目导入模板.xlsx');
   };
 
+  const handleExportSystemData = () => {
+    const dataStr = JSON.stringify(state, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = `teaching_system_backup_${new Date().toISOString().split('T')[0]}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+
+  const handleImportSystemData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const json = JSON.parse(evt.target?.result as string);
+        setPendingBackupData(json);
+        setShowImportBackupPrompt(true);
+      } catch (err) {
+        setImportResultModal({
+          isOpen: true,
+          title: '导入失败',
+          message: '文件格式错误，请确保选择的是有效的系统备份 JSON 文件。'
+        });
+      }
+      e.target.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  const confirmImportBackup = async (password: string) => {
+    if (password !== 'Bbzj@1234') {
+      setImportResultModal({
+        isOpen: true,
+        title: '密码错误',
+        message: '您输入的超级管理员密码不正确，操作已取消。'
+      });
+      setShowImportBackupPrompt(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/state/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pendingBackupData)
+      });
+
+      if (response.ok) {
+        setImportResultModal({
+          isOpen: true,
+          title: '导入成功',
+          message: '全量数据已成功恢复，系统将自动刷新。'
+        });
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        throw new Error('Import failed');
+      }
+    } catch (err) {
+      setImportResultModal({
+        isOpen: true,
+        title: '导入失败',
+        message: '服务器处理备份文件时出错，请检查文件内容。'
+      });
+    }
+    setShowImportBackupPrompt(false);
+  };
+
+  const filteredTeachers = useMemo(() => {
+    if (!teacherSearchQuery.trim()) return state.teachers;
+    const query = teacherSearchQuery.toLowerCase();
+    return state.teachers.filter(t => 
+      t.name.toLowerCase().includes(query) || 
+      t.department?.toLowerCase().includes(query) ||
+      t.primarySubject?.toLowerCase().includes(query)
+    );
+  }, [state.teachers, teacherSearchQuery]);
+
+  const filteredSubjects = useMemo(() => {
+    if (!subjectSearchQuery.trim()) return state.subjects;
+    const query = subjectSearchQuery.toLowerCase();
+    return state.subjects.filter(s => 
+      s.name.toLowerCase().includes(query) || 
+      s.type.toLowerCase().includes(query)
+    );
+  }, [state.subjects, subjectSearchQuery]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -602,25 +858,9 @@ export function Settings() {
                   </div>
                 )}
               </div>
-              <div className="flex justify-between items-center">
-                {isAdmin && (
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setShowClearSchedulesPrompt(true)} 
-                      className="bg-rose-100 text-rose-600 px-3 py-1.5 rounded-md hover:bg-rose-200 text-sm flex items-center gap-1"
-                    >
-                      <Trash2 className="w-4 h-4" /> 一键清除全校排课
-                    </button>
-                    <button 
-                      onClick={() => setShowClearClassesPrompt(true)} 
-                      className="bg-rose-100 text-rose-600 px-3 py-1.5 rounded-md hover:bg-rose-200 text-sm flex items-center gap-1"
-                    >
-                      <Trash2 className="w-4 h-4" /> 一键清除全校班级
-                    </button>
-                  </div>
-                )}
+              <div className="flex justify-end items-center">
                 {canEditMajor(selectedMajorId) && (
-                  <button onClick={handleAddClass} disabled={!selectedMajorId} className="bg-amber-600 text-white px-3 py-1.5 rounded-md hover:bg-amber-700 disabled:opacity-50 text-sm flex items-center gap-1 ml-auto">
+                  <button onClick={handleAddClass} disabled={!selectedMajorId} className="bg-amber-600 text-white px-3 py-1.5 rounded-md hover:bg-amber-700 disabled:opacity-50 text-sm flex items-center gap-1">
                     <Plus className="w-4 h-4" /> 添加班级
                   </button>
                 )}
@@ -764,6 +1004,16 @@ export function Settings() {
                   </div>
                 )}
               </div>
+              <div className="mt-3 relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="搜索教师姓名、部门或学科..."
+                  value={teacherSearchQuery}
+                  onChange={(e) => setTeacherSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
               {(isAdmin || user?.role === 'USER') && (
                 <form onSubmit={(e) => { 
                   e.preventDefault(); 
@@ -816,11 +1066,11 @@ export function Settings() {
             </div>
             <div className="flex-1 overflow-auto p-4">
               <div className="space-y-2">
-                {state.teachers.length > 0 && isAdmin && (
+                {filteredTeachers.length > 0 && isAdmin && (
                   <div className="flex justify-between items-center px-2 py-1 bg-slate-100 rounded text-sm mb-2">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={selectedTeachers.size === state.teachers.length && state.teachers.length > 0} onChange={(e) => {
-                        if (e.target.checked) setSelectedTeachers(new Set(state.teachers.map(t => t.id)));
+                      <input type="checkbox" checked={selectedTeachers.size === filteredTeachers.length && filteredTeachers.length > 0} onChange={(e) => {
+                        if (e.target.checked) setSelectedTeachers(new Set(filteredTeachers.map(t => t.id)));
                         else setSelectedTeachers(new Set());
                       }} />
                       <span className="text-slate-600">全选</span>
@@ -830,25 +1080,52 @@ export function Settings() {
                     )}
                   </div>
                 )}
-                {state.teachers.map(t => {
+                {filteredTeachers.map(t => {
                   const canEdit = isAdmin || (user?.role === 'USER' && userDeptNames.includes(t.department || ''));
                   return (
-                    <div key={t.id} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm">
-                      <div className="flex items-center gap-3">
-                        {isAdmin && (
-                          <input type="checkbox" checked={selectedTeachers.has(t.id)} onChange={() => toggleTeacherSelection(t.id)} className="cursor-pointer" />
-                        )}
-                        <div className="flex flex-col">
-                          <span className="font-medium">{t.name} {t.gender && `(${t.gender})`}</span>
-                          <div className="text-xs text-slate-500 flex gap-2 mt-0.5">
-                            {t.idCard && <span>身份证: {t.idCard}</span>}
+                    <div key={t.id} className="flex flex-col bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm gap-2 group">
+                      {editingTeacherId === t.id ? (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <input type="text" value={teacherForm.name || ''} onChange={e => setTeacherForm({...teacherForm, name: e.target.value})} className="px-2 py-1 border rounded" placeholder="姓名" />
+                            <select value={teacherForm.gender || ''} onChange={e => setTeacherForm({...teacherForm, gender: e.target.value as any})} className="px-2 py-1 border rounded">
+                              <option value="">性别</option>
+                              <option value="男">男</option>
+                              <option value="女">女</option>
+                            </select>
+                            <input type="text" value={teacherForm.idCard || ''} onChange={e => setTeacherForm({...teacherForm, idCard: e.target.value})} className="col-span-2 px-2 py-1 border rounded" placeholder="身份证" />
+                            <input type="text" value={teacherForm.department || ''} onChange={e => setTeacherForm({...teacherForm, department: e.target.value})} className="px-2 py-1 border rounded" placeholder="部门" />
+                            <input type="text" value={teacherForm.primarySubject || ''} onChange={e => setTeacherForm({...teacherForm, primarySubject: e.target.value})} className="px-2 py-1 border rounded" placeholder="学科" />
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => setEditingTeacherId(null)} className="text-slate-500 hover:text-slate-700 text-xs">取消</button>
+                            <button onClick={saveTeacher} className="text-indigo-600 hover:text-indigo-700 font-medium text-xs">保存</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              {isAdmin && (
+                                <input type="checkbox" checked={selectedTeachers.has(t.id)} onChange={() => toggleTeacherSelection(t.id)} className="cursor-pointer" />
+                              )}
+                              <div className="flex flex-col">
+                                <span className="font-medium">{t.name} {t.gender && `(${t.gender})`}</span>
+                              </div>
+                            </div>
+                            {canEdit && (
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => startEditTeacher(t)} className="text-slate-400 hover:text-indigo-600 p-1"><Edit2 className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => deleteTeacher(t.id)} className="text-slate-400 hover:text-rose-600 p-1"><Trash2 className="w-4 h-4" /></button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1 ml-0">
+                            {t.idCard && <span>身份证: {t.idCard.length === 18 ? `${t.idCard.substring(0, 6)}****${t.idCard.substring(14)}` : t.idCard}</span>}
                             {t.department && <span>产业部: {t.department}</span>}
                             {t.primarySubject && <span>学科: {t.primarySubject}</span>}
                           </div>
-                        </div>
-                      </div>
-                      {canEdit && (
-                        <button onClick={() => deleteTeacher(t.id)} className="text-slate-400 hover:text-rose-600 ml-1"><Trash2 className="w-4 h-4" /></button>
+                        </>
                       )}
                     </div>
                   );
@@ -875,6 +1152,16 @@ export function Settings() {
                     </label>
                   </div>
                 )}
+              </div>
+              <div className="mt-3 relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="搜索科目名称或类型..."
+                  value={subjectSearchQuery}
+                  onChange={(e) => setSubjectSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
               </div>
               {(isAdmin || user?.role === 'USER') && (
                 <form onSubmit={(e) => { 
@@ -937,11 +1224,11 @@ export function Settings() {
             </div>
             <div className="flex-1 overflow-auto p-4">
               <div className="space-y-2">
-                {state.subjects.length > 0 && isAdmin && (
+                {filteredSubjects.length > 0 && isAdmin && (
                   <div className="flex justify-between items-center px-2 py-1 bg-slate-100 rounded text-sm mb-2">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={selectedSubjects.size === state.subjects.length && state.subjects.length > 0} onChange={(e) => {
-                        if (e.target.checked) setSelectedSubjects(new Set(state.subjects.map(s => s.id)));
+                      <input type="checkbox" checked={selectedSubjects.size === filteredSubjects.length && filteredSubjects.length > 0} onChange={(e) => {
+                        if (e.target.checked) setSelectedSubjects(new Set(filteredSubjects.map(s => s.id)));
                         else setSelectedSubjects(new Set());
                       }} />
                       <span className="text-slate-600">全选</span>
@@ -951,47 +1238,86 @@ export function Settings() {
                     )}
                   </div>
                 )}
-                {state.subjects.map(s => {
-                  const isProfessional = s.type === '中职专业课';
-                  const canEdit = isAdmin || (user?.role === 'USER' && user.departmentIds?.includes(s.departmentId || ''));
-                  return (
-                  <div key={s.id} className="flex flex-col bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm gap-1">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {isAdmin && (
-                          <input type="checkbox" checked={selectedSubjects.has(s.id)} onChange={() => toggleSubjectSelection(s.id)} className="cursor-pointer" />
-                        )}
-                        <span className="font-medium">{s.name}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${s.type === '中职专业课' ? 'bg-orange-100 text-orange-700' : s.type.includes('综合高中') ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{s.type}</span>
-                      </div>
-                      {canEdit && (
-                        <div className="flex items-center gap-1">
-                          <button 
-                            onClick={() => reorderSubject(s.id, 'up')} 
-                            className="text-slate-400 hover:text-indigo-600 p-1"
-                            title="上移"
+
+                {editingSubjectId ? (
+                  <div className="bg-white p-3 rounded-lg border border-indigo-200 shadow-sm space-y-3 mb-4">
+                    <div className="flex justify-between items-center mb-1">
+                      <h4 className="text-xs font-bold text-indigo-600 uppercase">编辑科目</h4>
+                      <button onClick={() => setEditingSubjectId(null)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+                    </div>
+                    <div className="space-y-2">
+                      <input 
+                        type="text" 
+                        value={subjectForm.name || ''} 
+                        onChange={e => setSubjectForm({...subjectForm, name: e.target.value})} 
+                        className="w-full px-2 py-1.5 border rounded text-sm" 
+                        placeholder="科目名称" 
+                      />
+                      <select 
+                        value={subjectForm.type || ''} 
+                        onChange={e => setSubjectForm({...subjectForm, type: e.target.value as any})} 
+                        className="w-full px-2 py-1.5 border rounded text-sm"
+                      >
+                        <option value="中职公共基础课">中职公共基础课</option>
+                        <option value="中职专业课">中职专业课</option>
+                        <option value="综合高中文化课">综合高中文化课</option>
+                        <option value="综合高中技能课">综合高中技能课</option>
+                      </select>
+                      {subjectForm.type === '中职专业课' && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <select 
+                            value={subjectForm.departmentId || ''} 
+                            onChange={e => setSubjectForm({...subjectForm, departmentId: e.target.value, majorId: ''})} 
+                            className="px-2 py-1.5 border rounded text-xs"
                           >
-                            <ArrowUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button 
-                            onClick={() => reorderSubject(s.id, 'down')} 
-                            className="text-slate-400 hover:text-indigo-600 p-1"
-                            title="下移"
+                            <option value="">选择产业部</option>
+                            {state.departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                          </select>
+                          <select 
+                            value={subjectForm.majorId || ''} 
+                            onChange={e => setSubjectForm({...subjectForm, majorId: e.target.value})} 
+                            className="px-2 py-1.5 border rounded text-xs"
                           >
-                            <ArrowDown className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => deleteSubject(s.id)} className="text-slate-400 hover:text-rose-600 p-1 ml-1"><Trash2 className="w-4 h-4" /></button>
+                            <option value="">选择专业</option>
+                            {state.majors.filter(m => m.departmentId === subjectForm.departmentId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                          </select>
                         </div>
                       )}
                     </div>
-                    {isProfessional && s.departmentId && (
-                      <div className="text-xs text-slate-500 flex gap-2 ml-5">
-                        <span>产业部: {state.departments.find(d => d.id === s.departmentId)?.name || '未知'}</span>
-                        {s.majorId && <span>专业: {state.majors.find(m => m.id === s.majorId)?.name || '未知'}</span>}
-                      </div>
-                    )}
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button onClick={() => setEditingSubjectId(null)} className="px-3 py-1 text-slate-500 hover:bg-slate-100 rounded text-xs">取消</button>
+                      <button onClick={saveSubject} className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-xs">保存修改</button>
+                    </div>
                   </div>
-                )})}
+                ) : null}
+
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={filteredSubjects.map(s => s.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-2">
+                      {filteredSubjects.map(s => (
+                        <SortableSubjectItem 
+                          key={s.id} 
+                          subject={s} 
+                          isAdmin={isAdmin} 
+                          user={user} 
+                          state={state} 
+                          canEdit={isAdmin || (user?.role === 'USER' && user.departmentIds?.includes(s.departmentId || ''))}
+                          selectedSubjects={selectedSubjects}
+                          toggleSubjectSelection={toggleSubjectSelection}
+                          startEditSubject={startEditSubject}
+                          deleteSubject={deleteSubject}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </div>
             </div>
           </div>
@@ -1043,6 +1369,54 @@ export function Settings() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* System Maintenance Section */}
+      {isAdmin && (
+        <div className="mt-12 p-6 bg-slate-50 rounded-xl border border-slate-200">
+          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <Save className="w-5 h-5 text-indigo-600" /> 系统全量数据维护与备份
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <h4 className="text-sm font-bold text-slate-700">数据导出 (全量备份)</h4>
+              <p className="text-xs text-slate-500">将当前系统所有数据（组织、教师、科目、排课、存档等）导出为 JSON 文件，用于迁移或更新前的安全备份。</p>
+              <button 
+                onClick={handleExportSystemData}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-sm font-medium"
+              >
+                <Download className="w-4 h-4" /> 导出全量备份 (JSON)
+              </button>
+            </div>
+            <div className="space-y-2">
+              <h4 className="text-sm font-bold text-slate-700">数据导入 (全量恢复)</h4>
+              <p className="text-xs text-slate-500">从备份文件恢复系统数据。注意：这将覆盖当前系统中的所有数据，且不可撤销。</p>
+              <div className="flex gap-2">
+                <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors text-sm font-medium">
+                  <Upload className="w-4 h-4" /> 选择备份文件并导入
+                  <input type="file" accept=".json" className="hidden" onChange={handleImportSystemData} />
+                </label>
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 pt-6 border-t border-slate-200">
+            <h4 className="text-sm font-bold text-rose-600 mb-2">危险操作区域</h4>
+            <div className="flex flex-wrap gap-3">
+              <button 
+                onClick={() => setShowClearSchedulesPrompt(true)} 
+                className="bg-rose-50 text-rose-600 border border-rose-200 px-3 py-1.5 rounded-md hover:bg-rose-100 text-sm flex items-center gap-1"
+              >
+                <Trash2 className="w-4 h-4" /> 一键清除全校排课
+              </button>
+              <button 
+                onClick={() => setShowClearClassesPrompt(true)} 
+                className="bg-rose-50 text-rose-600 border border-rose-200 px-3 py-1.5 rounded-md hover:bg-rose-100 text-sm flex items-center gap-1"
+              >
+                <Trash2 className="w-4 h-4" /> 一键清除全校班级
+              </button>
             </div>
           </div>
         </div>
@@ -1127,6 +1501,15 @@ export function Settings() {
           }
         }}
         onCancel={() => setShowClearSchedulesPrompt(false)}
+      />
+
+      <PromptModal
+        isOpen={showImportBackupPrompt}
+        title="确认恢复系统备份"
+        message="警告：恢复备份将彻底覆盖当前系统中的所有数据（除了用户账号）。此操作不可撤销！请输入超级管理员密码以确认："
+        isPassword={true}
+        onConfirm={confirmImportBackup}
+        onCancel={() => setShowImportBackupPrompt(false)}
       />
     </div>
   );

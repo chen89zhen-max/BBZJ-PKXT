@@ -67,17 +67,19 @@ export function TeacherWorkload() {
       // Group by department for detailed view
       const deptBreakdown = teacherSchedules.reduce((acc, schedule) => {
         const cls = state.classes.find(c => c.id === schedule.classId);
+        const grade = state.grades.find(g => g.id === cls?.gradeId);
         const major = state.majors.find(m => m.id === cls?.majorId);
         const dept = state.departments.find(d => d.id === major?.departmentId);
         const subject = state.subjects.find(s => s.id === schedule.subjectId);
         
         const deptName = dept?.name || '未知专业部';
+        const fullClassName = grade ? `${grade.name}${cls?.name}` : (cls?.name || '未知班级');
         
         if (!acc[deptName]) {
           acc[deptName] = [];
         }
         acc[deptName].push({
-          className: cls?.name || '未知班级',
+          className: fullClassName,
           subjectName: subject?.name || '未知科目',
           hours: schedule.hours
         });

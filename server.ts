@@ -123,6 +123,7 @@ let state: AppState = {
     { id: 'sch-23', classId: 'c-6', subjectId: 's-3', teacherId: 't-3', hours: 5 },
     { id: 'sch-24', classId: 'c-6', subjectId: 's-13', teacherId: 't-14', hours: 2 },
   ],
+  archives: [],
   users: [],
 };
 
@@ -366,6 +367,24 @@ async function startServer() {
 
   app.get('/api/state', (req, res) => {
     res.json(state);
+  });
+
+  app.post('/api/state/import', authorize(['SUPER_ADMIN']), (req, res) => {
+    const newState = req.body;
+    // Basic validation
+    if (!newState.departments || !newState.teachers || !newState.schedules) {
+      return res.status(400).json({ error: 'Invalid backup format' });
+    }
+    
+    state = { ...newState, users: state.users }; // Keep current users for safety
+    saveState();
+    
+    const filteredState = {
+      ...state,
+      users: state.users.map(({ passwordHash, ...u }) => u)
+    };
+    io.emit('state:sync', filteredState);
+    res.json({ message: 'State restored successfully' });
   });
 
   // Dummy favicon route to prevent 404 errors

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { AppState, Schedule, Department, Teacher, Major, Grade, Class, Subject, ClassCategory, SubjectType, User } from './types';
+import { AppState, Schedule, Department, Teacher, Major, Grade, Class, Subject, ClassCategory, SubjectType, User, Archive } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 interface AppContextType {
@@ -35,15 +35,18 @@ interface AppContextType {
   // Teachers
   addTeacher: (teacher: Omit<Teacher, 'id'>) => void;
   addTeachers: (teachers: Omit<Teacher, 'id'>[]) => void;
+  updateTeacher: (teacher: Teacher) => void;
   deleteTeacher: (id: string) => void;
   deleteTeachers: (ids: string[]) => void;
   
   // Subjects
   addSubject: (name: string, type: SubjectType, departmentId?: string, majorId?: string) => void;
   addSubjects: (subjects: Omit<Subject, 'id'>[]) => void;
+  updateSubject: (subject: Subject) => void;
   deleteSubject: (id: string) => void;
   deleteSubjects: (ids: string[]) => void;
   reorderSubject: (id: string, direction: 'up' | 'down') => void;
+  updateSubjectsOrder: (subjects: Subject[]) => void;
   
   // Class Categories
   addClassCategory: (name: string) => void;
@@ -52,6 +55,11 @@ interface AppContextType {
   // Schedules
   clearSchedules: () => void;
   clearDepartmentSchedules: (departmentId: string) => void;
+  
+  // Archives
+  createArchive: (departmentId: string, name: string) => void;
+  restoreArchive: (archiveId: string) => void;
+  deleteArchive: (archiveId: string) => void;
   
   connected: boolean;
 }
@@ -69,6 +77,7 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     teachers: [],
     subjects: [],
     schedules: [],
+    archives: [],
     classCategories: [],
     users: [],
   });
@@ -383,6 +392,9 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
 
     broadcastState({ ...state, teachers: updatedTeachers });
   };
+  const updateTeacher = (teacher: Teacher) => {
+    broadcastState({ ...state, teachers: state.teachers.map(t => t.id === teacher.id ? teacher : t) });
+  };
   const deleteTeacher = (id: string) => {
     const remainingTeachers = state.teachers.filter(t => t.id !== id);
     const remainingTeacherIds = new Set(remainingTeachers.map(t => t.id));
@@ -449,6 +461,9 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     
     broadcastState({ ...state, subjects: [...state.subjects, ...subjectsToAdd] });
   };
+  const updateSubject = (subject: Subject) => {
+    broadcastState({ ...state, subjects: state.subjects.map(s => s.id === subject.id ? subject : s) });
+  };
   const deleteSubject = (id: string) => {
     const remainingSubjects = state.subjects.filter(s => s.id !== id);
     const remainingSubjectIds = new Set(remainingSubjects.map(s => s.id));
@@ -496,12 +511,76 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     broadcastState({ ...state, subjects: newSubjects });
   };
 
+  const updateSubjectsOrder = (subjects: Subject[]) => {
+    broadcastState({ ...state, subjects });
+  };
+
   // Class Categories
   const addClassCategory = (name: string) => {
     broadcastState({ ...state, classCategories: [...state.classCategories, { id: uuidv4(), name }] });
   };
   const deleteClassCategory = (id: string) => {
     broadcastState({ ...state, classCategories: state.classCategories.filter(c => c.id !== id) });
+  };
+
+  // Archives
+  const createArchive = (departmentId: string, name: string) => {
+    const deptMajors = state.majors.filter(m => m.departmentId === departmentId);
+    const deptMajorIds = new Set(deptMajors.map(m => m.id));
+    const deptClassIds = new Set(state.classes.filter(c => deptMajorIds.has(c.majorId)).map(c => c.id));
+    
+    const schedulesToArchive = state.schedules.filter(s => deptClassIds.has(s.classId));
+    
+    const newArchive: Archive = {
+      id: uuidv4(),
+      departmentId,
+      name,
+      timestamp: new Date().toISOString(),
+      schedules: schedulesToArchive
+    };
+
+    let newArchives = [...(state.archives || [])];
+    const deptArchives = newArchives.filter(a => a.departmentId === departmentId);
+    
+    if (deptArchives.length >= 10) {
+      // Find the oldest one for this department
+      const oldest = deptArchives.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0];
+      newArchives = newArchives.filter(a => a.id !== oldest.id);
+    }
+    
+    newArchives.push(newArchive);
+    broadcastState({ ...state, archives: newArchives });
+  };
+
+  const restoreArchive = (archiveId: string) => {
+    const archive = state.archives.find(a => a.id === archiveId);
+    if (!archive) return;
+
+    const departmentId = archive.departmentId;
+    const deptMajors = state.majors.filter(m => m.departmentId === departmentId);
+    const deptMajorIds = new Set(deptMajors.map(m => m.id));
+    const deptClassIds = new Set(state.classes.filter(c => deptMajorIds.has(c.majorId)).map(c => c.id));
+
+    // Remove current schedules for this department
+    const otherSchedules = state.schedules.filter(s => !deptClassIds.has(s.classId));
+    
+    // Add archived schedules
+    // We should probably generate new IDs for the schedules to avoid conflicts if they were deleted and recreated
+    // But since they are snapshots, keeping IDs might be okay if we assume they are unique.
+    // However, it's safer to just use them as is if we want to "restore" exactly.
+    const restoredSchedules = archive.schedules.map(s => ({ ...s, id: uuidv4() }));
+
+    broadcastState({
+      ...state,
+      schedules: [...otherSchedules, ...restoredSchedules]
+    });
+  };
+
+  const deleteArchive = (archiveId: string) => {
+    broadcastState({
+      ...state,
+      archives: state.archives.filter(a => a.id !== archiveId)
+    });
   };
 
   return (
@@ -528,17 +607,23 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
         importMajors,
         addTeacher,
         addTeachers,
+        updateTeacher,
         deleteTeacher,
         deleteTeachers,
         addSubject,
         addSubjects,
+        updateSubject,
         deleteSubject,
         deleteSubjects,
         reorderSubject,
+        updateSubjectsOrder,
         addClassCategory,
         deleteClassCategory,
         clearSchedules,
         clearDepartmentSchedules,
+        createArchive,
+        restoreArchive,
+        deleteArchive,
         connected,
       }}
     >
