@@ -525,10 +525,14 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
 
   // Archives
   const createArchive = (departmentId: string, name: string) => {
+    // A department's schedules are those where the class belongs to a major in that department
     const deptMajors = state.majors.filter(m => m.departmentId === departmentId);
     const deptMajorIds = new Set(deptMajors.map(m => m.id));
     const deptClassIds = new Set(state.classes.filter(c => deptMajorIds.has(c.majorId)).map(c => c.id));
     
+    // Also include schedules where the subject belongs to the department (for cross-department teaching)
+    // Actually, the requirement says "只存档和恢复各自产业部的排课数据" (only archive/restore this department's schedule data).
+    // The matrix schedule shows classes belonging to the department. So we archive schedules for these classes.
     const schedulesToArchive = state.schedules.filter(s => deptClassIds.has(s.classId));
     
     const newArchive: Archive = {
@@ -544,7 +548,7 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     
     if (deptArchives.length >= 10) {
       // Find the oldest one for this department
-      const oldest = deptArchives.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0];
+      const oldest = [...deptArchives].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0];
       newArchives = newArchives.filter(a => a.id !== oldest.id);
     }
     
@@ -561,13 +565,10 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     const deptMajorIds = new Set(deptMajors.map(m => m.id));
     const deptClassIds = new Set(state.classes.filter(c => deptMajorIds.has(c.majorId)).map(c => c.id));
 
-    // Remove current schedules for this department
+    // Remove current schedules for this department's classes
     const otherSchedules = state.schedules.filter(s => !deptClassIds.has(s.classId));
     
-    // Add archived schedules
-    // We should probably generate new IDs for the schedules to avoid conflicts if they were deleted and recreated
-    // But since they are snapshots, keeping IDs might be okay if we assume they are unique.
-    // However, it's safer to just use them as is if we want to "restore" exactly.
+    // Add archived schedules (generate new IDs to avoid conflicts)
     const restoredSchedules = archive.schedules.map(s => ({ ...s, id: uuidv4() }));
 
     broadcastState({

@@ -689,7 +689,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
 
       {/* Archive Modal */}
       {showArchiveModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
