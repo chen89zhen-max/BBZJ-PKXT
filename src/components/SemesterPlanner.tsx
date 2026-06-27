@@ -3,7 +3,7 @@ import { useAppContext } from '../context';
 import { 
   Building2, Users, GraduationCap, TrendingUp, Calculator, 
   Sparkles, CheckCircle, AlertCircle, Calendar, RefreshCw, 
-  HelpCircle, ChevronRight, Save, Edit3, Trash2, Plus, Download, Upload
+  HelpCircle, ChevronRight, Save, Edit3, Trash2, Plus, Download, Upload, ArrowUpDown
 } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 import * as xlsx from 'xlsx';
@@ -88,6 +88,19 @@ export function SemesterPlanner() {
     title: string;
     message: string;
   }>({ isOpen: false, title: '', message: '' });
+
+  // Sorting state for classes
+  const [classSortKey, setClassSortKey] = useState<'name' | 'grade' | 'major' | null>(null);
+  const [classSortOrder, setClassSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (key: 'name' | 'grade' | 'major') => {
+    if (classSortKey === key) {
+      setClassSortOrder(classSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setClassSortKey(key);
+      setClassSortOrder('asc');
+    }
+  };
 
   // Get active departments, majors, classes
   const departments = state.departments;
@@ -648,10 +661,36 @@ export function SemesterPlanner() {
 
             <div className="grid grid-cols-1 gap-6">
               {departments.map(dept => {
-                const deptClasses = classes.filter(cls => {
+                let deptClasses = classes.filter(cls => {
                   const major = majors.find(m => m.id === cls.majorId);
                   return major?.departmentId === dept.id;
                 });
+
+                if (classSortKey) {
+                  deptClasses = [...deptClasses].sort((a, b) => {
+                    let valA = '';
+                    let valB = '';
+
+                    if (classSortKey === 'name') {
+                      valA = a.name || '';
+                      valB = b.name || '';
+                    } else if (classSortKey === 'grade') {
+                      const gradeA = state.grades.find(g => g.id === a.gradeId)?.name || '';
+                      const gradeB = state.grades.find(g => g.id === b.gradeId)?.name || '';
+                      valA = gradeA;
+                      valB = gradeB;
+                    } else if (classSortKey === 'major') {
+                      const majorA = majors.find(m => m.id === a.majorId)?.name || '';
+                      const majorB = majors.find(m => m.id === b.majorId)?.name || '';
+                      valA = majorA;
+                      valB = majorB;
+                    }
+
+                    return classSortOrder === 'asc'
+                      ? valA.localeCompare(valB, 'zh-CN', { numeric: true })
+                      : valB.localeCompare(valA, 'zh-CN', { numeric: true });
+                  });
+                }
 
                 return (
                   <div key={dept.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -674,11 +713,41 @@ export function SemesterPlanner() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse text-sm">
                         <thead>
-                          <tr className="bg-slate-100 text-slate-600 border-b border-slate-200 text-xs font-bold uppercase">
-                            <th className="px-6 py-3">班级名称</th>
-                            <th className="px-6 py-3">所属专业</th>
-                            <th className="px-6 py-3">所属年级/级</th>
-                            <th className="px-6 py-3">阶段 (升级可变)</th>
+                          <tr className="bg-slate-100 text-slate-600 border-b border-slate-200 text-xs font-bold uppercase select-none">
+                            <th 
+                              className="px-6 py-3 cursor-pointer hover:bg-slate-200/60 transition-colors group"
+                              onClick={() => handleSort('name')}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                班级名称
+                                <ArrowUpDown className={`w-3.5 h-3.5 transition-colors ${
+                                  classSortKey === 'name' ? 'text-indigo-600 font-bold' : 'text-slate-400 group-hover:text-slate-600'
+                                }`} />
+                              </div>
+                            </th>
+                            <th 
+                              className="px-6 py-3 cursor-pointer hover:bg-slate-200/60 transition-colors group"
+                              onClick={() => handleSort('major')}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                所属专业
+                                <ArrowUpDown className={`w-3.5 h-3.5 transition-colors ${
+                                  classSortKey === 'major' ? 'text-indigo-600 font-bold' : 'text-slate-400 group-hover:text-slate-600'
+                                }`} />
+                              </div>
+                            </th>
+                            <th 
+                              className="px-6 py-3 cursor-pointer hover:bg-slate-200/60 transition-colors group"
+                              onClick={() => handleSort('grade')}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                所属年级/级
+                                <ArrowUpDown className={`w-3.5 h-3.5 transition-colors ${
+                                  classSortKey === 'grade' ? 'text-indigo-600 font-bold' : 'text-slate-400 group-hover:text-slate-600'
+                                }`} />
+                              </div>
+                            </th>
+                            <th className="px-6 py-3">班级类型</th>
                             <th className="px-6 py-3">当前状态</th>
                             <th className="px-6 py-3">人数</th>
                             <th className="px-6 py-3">班主任</th>
@@ -715,17 +784,10 @@ export function SemesterPlanner() {
                                   </td>
                                   <td className="px-6 py-4 text-slate-600">{major?.name || '-'}</td>
                                   <td className="px-6 py-4 font-mono text-slate-500">{grade?.name || '未知级'}</td>
-                                  <td className="px-6 py-3">
-                                    <select
-                                      value={stage}
-                                      onChange={(e) => handleStageChange(cls.id, e.target.value)}
-                                      className="bg-white border border-slate-300 rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-medium"
-                                    >
-                                      <option value="高一">高一</option>
-                                      <option value="高二">高二</option>
-                                      <option value="高三">高三</option>
-                                      <option value="已毕业">已毕业</option>
-                                    </select>
+                                  <td className="px-6 py-4">
+                                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
+                                      {cls.type || '普通班'}
+                                    </span>
                                   </td>
                                   <td className="px-6 py-3">
                                     <select
