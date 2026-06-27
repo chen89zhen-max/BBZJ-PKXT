@@ -629,11 +629,28 @@ export function Settings() {
   };
 
   const confirmImportBackup = async (password: string) => {
-    if (password !== 'Bbzj@1234') {
+    try {
+      const verifyRes = await fetch('/api/verify-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password })
+      });
+      const verifyData = await verifyRes.json().catch(() => ({}));
+      if (!verifyRes.ok || !verifyData.valid) {
+        setImportResultModal({
+          isOpen: true,
+          title: '密码错误',
+          message: '您输入的超级管理员密码不正确，操作已取消。'
+        });
+        setShowImportBackupPrompt(false);
+        return;
+      }
+    } catch (e) {
       setImportResultModal({
         isOpen: true,
-        title: '密码错误',
-        message: '您输入的超级管理员密码不正确，操作已取消。'
+        title: '验证失败',
+        message: '无法验证管理员密码，请重试或检查服务器状态。'
       });
       setShowImportBackupPrompt(false);
       return;
@@ -1489,21 +1506,37 @@ export function Settings() {
         title="清除全校班级"
         message="此操作将删除所有班级及其排课数据，且不可恢复。请输入超级管理员密码以确认："
         isPassword={true}
-        onConfirm={(password) => {
-          if (password === 'Bbzj@1234') {
-            clearClasses();
-            setShowClearClassesPrompt(false);
-            setImportResultModal({
-              isOpen: true,
-              title: '操作成功',
-              message: '已成功清除全校所有班级数据。'
+        onConfirm={async (password) => {
+          try {
+            const verifyRes = await fetch('/api/verify-password', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ password })
             });
-          } else {
+            const verifyData = await verifyRes.json().catch(() => ({}));
+            if (verifyRes.ok && verifyData.valid) {
+              clearClasses();
+              setShowClearClassesPrompt(false);
+              setImportResultModal({
+                isOpen: true,
+                title: '操作成功',
+                message: '已成功清除全校所有班级数据。'
+              });
+            } else {
+              setShowClearClassesPrompt(false);
+              setImportResultModal({
+                isOpen: true,
+                title: '密码错误',
+                message: '您输入的超级管理员密码不正确，操作已取消。'
+              });
+            }
+          } catch (e) {
             setShowClearClassesPrompt(false);
             setImportResultModal({
               isOpen: true,
-              title: '密码错误',
-              message: '您输入的超级管理员密码不正确，操作已取消。'
+              title: '验证失败',
+              message: '无法验证管理员密码，请重试或检查服务器状态。'
             });
           }
         }}
@@ -1515,21 +1548,37 @@ export function Settings() {
         title="清除全校排课"
         message="此操作将删除全校所有排课数据，且不可恢复。请输入超级管理员密码以确认："
         isPassword={true}
-        onConfirm={(password) => {
-          if (password === 'Bbzj@1234') {
-            clearSchedules();
-            setShowClearSchedulesPrompt(false);
-            setImportResultModal({
-              isOpen: true,
-              title: '操作成功',
-              message: '已成功清除全校所有排课数据。'
+        onConfirm={async (password) => {
+          try {
+            const verifyRes = await fetch('/api/verify-password', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ password })
             });
-          } else {
+            const verifyData = await verifyRes.json().catch(() => ({}));
+            if (verifyRes.ok && verifyData.valid) {
+              clearSchedules();
+              setShowClearSchedulesPrompt(false);
+              setImportResultModal({
+                isOpen: true,
+                title: '操作成功',
+                message: '已成功清除全校所有排课数据。'
+              });
+            } else {
+              setShowClearSchedulesPrompt(false);
+              setImportResultModal({
+                isOpen: true,
+                title: '密码错误',
+                message: '您输入的超级管理员密码不正确，操作已取消。'
+              });
+            }
+          } catch (e) {
             setShowClearSchedulesPrompt(false);
             setImportResultModal({
               isOpen: true,
-              title: '密码错误',
-              message: '您输入的超级管理员密码不正确，操作已取消。'
+              title: '验证失败',
+              message: '无法验证管理员密码，请重试或检查服务器状态。'
             });
           }
         }}

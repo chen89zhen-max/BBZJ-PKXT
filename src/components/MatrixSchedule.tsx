@@ -250,14 +250,29 @@ export function MatrixSchedule({ department }: { department: Department }) {
     setShowPasswordPrompt(true);
   };
 
-  const handlePasswordSubmit = (password: string) => {
+  const handlePasswordSubmit = async (password: string) => {
     setShowPasswordPrompt(false);
-    if (password === 'Bbzj@1234') {
-      setShowConfirmClear(true);
-    } else {
+    try {
+      const verifyRes = await fetch('/api/verify-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password })
+      });
+      const verifyData = await verifyRes.json().catch(() => ({}));
+      if (verifyRes.ok && verifyData.valid) {
+        setShowConfirmClear(true);
+      } else {
+        setAlertMessage({
+          title: '密码错误',
+          message: '您输入的超级管理员密码不正确，操作已取消。',
+          type: 'danger'
+        });
+      }
+    } catch (e) {
       setAlertMessage({
-        title: '密码错误',
-        message: '您输入的超级管理员密码不正确，操作已取消。',
+        title: '验证失败',
+        message: '无法验证管理员密码，请重试。',
         type: 'danger'
       });
     }

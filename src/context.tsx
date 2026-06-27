@@ -51,6 +51,7 @@ interface AppContextType {
   // Class Categories
   addClassCategory: (name: string) => void;
   deleteClassCategory: (id: string) => void;
+  updateClassCategoryHours: (id: string, hours: number) => void;
   
   // Schedules
   clearSchedules: () => void;
@@ -536,6 +537,12 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
   const deleteClassCategory = (id: string) => {
     broadcastState({ ...state, classCategories: state.classCategories.filter(c => c.id !== id) });
   };
+  const updateClassCategoryHours = (id: string, hours: number) => {
+    broadcastState({
+      ...state,
+      classCategories: state.classCategories.map(c => c.id === id ? { ...c, weeklyHours: hours } : c)
+    });
+  };
 
   // Archives
   const createArchive = (departmentId: string, name: string) => {
@@ -746,6 +753,7 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
         updateSubjectsOrder,
         addClassCategory,
         deleteClassCategory,
+        updateClassCategoryHours,
         clearSchedules,
         clearDepartmentSchedules,
         createArchive,

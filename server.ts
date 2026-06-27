@@ -16,15 +16,15 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-me';
 // Initial State
 let state: AppState = {
   classCategories: [
-    { id: 'cat-1', name: '普通班' },
-    { id: 'cat-2', name: '培优班' },
-    { id: 'cat-3', name: '3+2' },
-    { id: 'cat-4', name: '3+4' },
-    { id: 'cat-5', name: '五年制' },
-    { id: 'cat-6', name: '中职云班' },
-    { id: 'cat-7', name: '综合高中普通' },
-    { id: 'cat-8', name: '综合高中艺体' },
-    { id: 'cat-9', name: '综合高中云班' },
+    { id: 'cat-1', name: '普通班', weeklyHours: 30 },
+    { id: 'cat-2', name: '培优班', weeklyHours: 34 },
+    { id: 'cat-3', name: '3+2', weeklyHours: 30 },
+    { id: 'cat-4', name: '3+4', weeklyHours: 30 },
+    { id: 'cat-5', name: '五年制', weeklyHours: 30 },
+    { id: 'cat-6', name: '中职云班', weeklyHours: 34 },
+    { id: 'cat-7', name: '综合高中普通', weeklyHours: 40 },
+    { id: 'cat-8', name: '综合高中艺体', weeklyHours: 40 },
+    { id: 'cat-9', name: '综合高中云班', weeklyHours: 40 },
   ],
   departments: [
     { id: 'dept-1', name: '智能制造产业部' },
@@ -376,6 +376,30 @@ async function startServer() {
 
   app.get('/api/state', (req, res) => {
     res.json(state);
+  });
+
+  app.post('/api/verify-password', async (req, res) => {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const user = state.users.find(u => u.id === decoded.id);
+      if (!user) return res.status(401).json({ error: 'User not found' });
+      
+      const { password } = req.body;
+      if (!password) {
+        return res.status(400).json({ error: 'Password required' });
+      }
+      
+      // We allow either the actual user's password, OR the default hardcoded backup password 'Bbzj@1234', OR 'Chen@890312' for convenience
+      const isCorrect = (password === 'Bbzj@1234') || 
+                        (password === 'Chen@890312') || 
+                        (await bcrypt.compare(password, user.passwordHash));
+                        
+      res.json({ valid: isCorrect });
+    } catch (err) {
+      res.status(401).json({ error: 'Invalid token' });
+    }
   });
 
   app.post('/api/state/import', authorize(['SUPER_ADMIN', 'ADMIN']), (req, res) => {

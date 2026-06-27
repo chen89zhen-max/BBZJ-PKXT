@@ -37,6 +37,7 @@ export interface Subject {
 export interface ClassCategory {
   id: string;
   name: string;
+  weeklyHours?: number;
 }
 
 export interface Class {
