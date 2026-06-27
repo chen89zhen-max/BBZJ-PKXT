@@ -93,6 +93,24 @@ export function SemesterPlanner() {
   const [classSortKey, setClassSortKey] = useState<'name' | 'grade' | 'major' | null>(null);
   const [classSortOrder, setClassSortOrder] = useState<'asc' | 'desc'>('asc');
 
+  // Filtering state for departments' classes
+  const [deptFilters, setDeptFilters] = useState<Record<string, {
+    gradeId?: string;
+    majorId?: string;
+    classType?: string;
+    status?: string;
+  }>>({});
+
+  const updateDeptFilter = (deptId: string, filterKey: 'gradeId' | 'majorId' | 'classType' | 'status', value: string) => {
+    setDeptFilters(prev => ({
+      ...prev,
+      [deptId]: {
+        ...prev[deptId],
+        [filterKey]: value
+      }
+    }));
+  };
+
   const handleSort = (key: 'name' | 'grade' | 'major') => {
     if (classSortKey === key) {
       setClassSortOrder(classSortOrder === 'asc' ? 'desc' : 'asc');
@@ -661,9 +679,19 @@ export function SemesterPlanner() {
 
             <div className="grid grid-cols-1 gap-6">
               {departments.map(dept => {
-                let deptClasses = classes.filter(cls => {
+                const allDeptClasses = classes.filter(cls => {
                   const major = majors.find(m => m.id === cls.majorId);
                   return major?.departmentId === dept.id;
+                });
+
+                // Apply per-department filters
+                const filters = deptFilters[dept.id] || {};
+                let deptClasses = allDeptClasses.filter(cls => {
+                  if (filters.gradeId && cls.gradeId !== filters.gradeId) return false;
+                  if (filters.majorId && cls.majorId !== filters.majorId) return false;
+                  if (filters.classType && (cls.type || '普通班') !== filters.classType) return false;
+                  if (filters.status && (cls.status || '正常在校') !== filters.status) return false;
+                  return true;
                 });
 
                 if (classSortKey) {
@@ -672,8 +700,10 @@ export function SemesterPlanner() {
                     let valB = '';
 
                     if (classSortKey === 'name') {
-                      valA = a.name || '';
-                      valB = b.name || '';
+                      const gradeA = state.grades.find(g => g.id === a.gradeId)?.name || '';
+                      const gradeB = state.grades.find(g => g.id === b.gradeId)?.name || '';
+                      valA = gradeA + (a.name || '');
+                      valB = gradeB + (b.name || '');
                     } else if (classSortKey === 'grade') {
                       const gradeA = state.grades.find(g => g.id === a.gradeId)?.name || '';
                       const gradeB = state.grades.find(g => g.id === b.gradeId)?.name || '';
@@ -699,7 +729,8 @@ export function SemesterPlanner() {
                         <Building2 className="w-4 h-4 text-indigo-600" />
                         {dept.name}
                         <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium ml-1">
-                          共 {deptClasses.length} 个班级
+                          共 {allDeptClasses.length} 个班级
+                          {deptClasses.length !== allDeptClasses.length && ` (已筛选: ${deptClasses.length} 个)`}
                         </span>
                       </h3>
                       <button
@@ -708,6 +739,63 @@ export function SemesterPlanner() {
                       >
                         <Plus className="w-3.5 h-3.5" /> 在本科室建班
                       </button>
+                    </div>
+
+                    {/* Department-level filters toolbar */}
+                    <div className="px-6 py-3 bg-slate-50/40 border-b border-slate-150 grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">筛选年级</label>
+                        <select
+                          value={filters.gradeId || ''}
+                          onChange={(e) => updateDeptFilter(dept.id, 'gradeId', e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded px-2.5 py-1 text-xs text-slate-700 font-bold focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all shadow-sm"
+                        >
+                          <option value="">全部年级</option>
+                          {state.grades.map(g => (
+                            <option key={g.id} value={g.id}>{g.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">筛选专业</label>
+                        <select
+                          value={filters.majorId || ''}
+                          onChange={(e) => updateDeptFilter(dept.id, 'majorId', e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded px-2.5 py-1 text-xs text-slate-700 font-bold focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all shadow-sm"
+                        >
+                          <option value="">全部专业</option>
+                          {majors.filter(m => m.departmentId === dept.id).map(m => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">筛选班级类型</label>
+                        <select
+                          value={filters.classType || ''}
+                          onChange={(e) => updateDeptFilter(dept.id, 'classType', e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded px-2.5 py-1 text-xs text-slate-700 font-bold focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all shadow-sm"
+                        >
+                          <option value="">全部班级类型</option>
+                          {state.classCategories.map(c => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">筛选当前状态</label>
+                        <select
+                          value={filters.status || ''}
+                          onChange={(e) => updateDeptFilter(dept.id, 'status', e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded px-2.5 py-1 text-xs text-slate-700 font-bold focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all shadow-sm"
+                        >
+                          <option value="">全部状态</option>
+                          <option value="正常在校">正常在校</option>
+                          <option value="外出实习">外出实习</option>
+                          <option value="实习返校">实习返校</option>
+                          <option value="已毕业">已毕业</option>
+                        </select>
+                      </div>
                     </div>
                     
                     <div className="overflow-x-auto">
@@ -774,7 +862,7 @@ export function SemesterPlanner() {
                                 <tr key={cls.id} className={`hover:bg-slate-50 transition-colors ${cls.isPreset ? 'bg-amber-50/40' : ''}`}>
                                   <td className="px-6 py-4 font-bold text-slate-800">
                                     <div className="flex items-center gap-2">
-                                      {cls.name}
+                                      {(grade?.name || '') + cls.name}
                                       {cls.isPreset && (
                                         <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded border border-amber-200">
                                           预设草稿
