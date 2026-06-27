@@ -60,6 +60,12 @@ interface AppContextType {
   createArchive: (departmentId: string, name: string) => void;
   restoreArchive: (archiveId: string) => void;
   deleteArchive: (archiveId: string) => void;
+
+  // Planning
+  updateMajorEnrollmentTarget: (majorId: string, target: number) => void;
+  presetClassesForMajor: (majorId: string, gradeId: string, classes: { name: string; studentCount: number; type: string }[]) => void;
+  transitionAcademicYear: (newGradeName: string) => void;
+  updateClassStatusAndStage: (classId: string, status: '正常在校' | '外出实习' | '实习返校' | '已毕业', stage: '高一' | '高二' | '高三' | '已毕业') => void;
   
   connected: boolean;
 }
@@ -245,7 +251,15 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     broadcastState({ ...state, classes: [...state.classes, { ...cls, id: uuidv4() }] });
   };
   const updateClass = (cls: Class) => {
-    broadcastState({ ...state, classes: state.classes.map(c => c.id === cls.id ? cls : c) });
+    let updatedSchedules = state.schedules;
+    if (cls.status === '外出实习' || cls.status === '已毕业') {
+      updatedSchedules = state.schedules.filter(s => s.classId !== cls.id);
+    }
+    broadcastState({ 
+      ...state, 
+      classes: state.classes.map(c => c.id === cls.id ? cls : c),
+      schedules: updatedSchedules
+    });
   };
   const deleteClass = (id: string) => {
     const remainingClasses = state.classes.filter(c => c.id !== id);
@@ -584,6 +598,118 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     });
   };
 
+  // Planning functions
+  const updateMajorEnrollmentTarget = (majorId: string, target: number) => {
+    broadcastState({
+      ...state,
+      majors: state.majors.map(m => m.id === majorId ? { ...m, enrollmentTarget: target } : m)
+    });
+  };
+
+  const presetClassesForMajor = (majorId: string, gradeId: string, classesToPreset: { name: string; studentCount: number; type: string }[]) => {
+    const otherClasses = state.classes.filter(c => !(c.majorId === majorId && c.gradeId === gradeId && c.isPreset));
+    
+    const newPresetClasses = classesToPreset.map((cls) => ({
+      id: uuidv4(),
+      majorId,
+      gradeId,
+      name: cls.name,
+      type: cls.type,
+      classroom: '',
+      studentCount: cls.studentCount,
+      headTeacherId: '',
+      status: '正常在校' as const,
+      stage: '高一' as const,
+      isPreset: true
+    }));
+
+    broadcastState({
+      ...state,
+      classes: [...otherClasses, ...newPresetClasses]
+    });
+  };
+
+  const updateClassStatusAndStage = (classId: string, status: '正常在校' | '外出实习' | '实习返校' | '已毕业', stage: '高一' | '高二' | '高三' | '已毕业') => {
+    let updatedSchedules = state.schedules;
+    if (status === '外出实习' || status === '已毕业') {
+      updatedSchedules = state.schedules.filter(s => s.classId !== classId);
+    }
+    
+    broadcastState({
+      ...state,
+      classes: state.classes.map(c => c.id === classId ? { ...c, status, stage } : c),
+      schedules: updatedSchedules
+    });
+  };
+
+  const transitionAcademicYear = (newGradeName: string) => {
+    // 1. Create automatic safety archives for all departments before the transition
+    const timestampStr = new Date().toLocaleString('zh-CN', { hour12: false });
+    state.departments.forEach(dept => {
+      createArchive(dept.id, `学年升级前自动归档 (${dept.name}) - ${timestampStr}`);
+    });
+
+    // 2. Find or create the new Grade cohort
+    let updatedGrades = [...state.grades];
+    let newGrade = updatedGrades.find(g => g.name === newGradeName);
+    if (!newGrade) {
+      newGrade = { id: uuidv4(), name: newGradeName };
+      updatedGrades.push(newGrade);
+    }
+
+    // 3. Process existing classes
+    const updatedClasses = state.classes.map(cls => {
+      // Get initial stage if undefined based on grade/cohort name
+      const grade = state.grades.find(g => g.id === cls.gradeId);
+      const currentStage = cls.stage || (
+        grade?.name.includes('2023') ? '高三' :
+        grade?.name.includes('2024') ? '高二' :
+        grade?.name.includes('2025') ? '高一' : '高一'
+      );
+
+      let nextStage: '高一' | '高二' | '高三' | '已毕业' = '已毕业';
+      let nextStatus: '正常在校' | '外出实习' | '实习返校' | '已毕业' = '已毕业';
+
+      if (currentStage === '高一') {
+        nextStage = '高二';
+        nextStatus = '正常在校';
+      } else if (currentStage === '高二') {
+        nextStage = '高三';
+        nextStatus = '正常在校';
+      } else if (currentStage === '高三') {
+        nextStage = '已毕业';
+        nextStatus = '已毕业';
+      } else {
+        nextStage = '已毕业';
+        nextStatus = '已毕业';
+      }
+
+      // If it's a preset class prepared for the new semester, activate it!
+      if (cls.isPreset) {
+        return {
+          ...cls,
+          stage: '高一' as const,
+          status: '正常在校' as const,
+          isPreset: false
+        };
+      }
+
+      return {
+        ...cls,
+        stage: nextStage,
+        status: nextStatus
+      };
+    });
+
+    // 4. Update state and clear active schedules for new academic year
+    broadcastState({
+      ...state,
+      grades: updatedGrades,
+      classes: updatedClasses,
+      schedules: []
+    });
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -625,6 +751,10 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
         createArchive,
         restoreArchive,
         deleteArchive,
+        updateMajorEnrollmentTarget,
+        presetClassesForMajor,
+        updateClassStatusAndStage,
+        transitionAcademicYear,
         connected,
       }}
     >

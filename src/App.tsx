@@ -2,10 +2,11 @@ import React, { useState, Component, ErrorInfo, ReactNode, useEffect } from 'rea
 import { AppProvider, useAppContext } from './context';
 import { MatrixSchedule } from './components/MatrixSchedule';
 import { TeacherWorkload } from './components/TeacherWorkload';
+import { SemesterPlanner } from './components/SemesterPlanner';
 import { Settings } from './components/Settings';
 import { UserManagement } from './components/UserManagement';
 import { Login } from './components/Login';
-import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle, Menu, ChevronLeft, LogOut, UserCog } from 'lucide-react';
+import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle, Menu, ChevronLeft, LogOut, UserCog, Calendar, BarChart2 } from 'lucide-react';
 
 // 欢迎页动画组件已移除
 
@@ -159,8 +160,21 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
-                  <Users className="w-4 h-4" />
-                  教师工作量统计
+                  <BarChart2 className="w-4 h-4" />
+                  数据看板与师资统计
+                </button>
+              )}
+              {canAccess('planner') && (
+                <button
+                  onClick={() => setActiveTab('planner')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === 'planner'
+                      ? 'bg-indigo-50 text-indigo-700'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  学期与学年规划
                 </button>
               )}
               {canAccess('settings') && (
@@ -198,6 +212,8 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
           <div className="max-w-full mx-auto flex-1">
             {activeTab === 'workload' ? (
               <TeacherWorkload />
+            ) : activeTab === 'planner' ? (
+              <SemesterPlanner />
             ) : activeTab === 'settings' ? (
               <Settings />
             ) : activeTab === 'users' ? (

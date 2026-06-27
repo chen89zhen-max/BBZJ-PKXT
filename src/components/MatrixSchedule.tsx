@@ -189,6 +189,10 @@ export function MatrixSchedule({ department }: { department: Department }) {
 
   // Handle cell updates - Memoized to prevent cell re-renders
   const handleCellChange = useCallback((classId: string, subjectId: string, field: 'teacherId' | 'hours', value: string | number) => {
+    const cls = state.classes.find(c => c.id === classId);
+    if (cls?.status === '外出实习' || cls?.status === '已毕业') {
+      return;
+    }
     const key = `${classId}:::${subjectId}`;
     
     setPendingSchedules(prev => {
@@ -216,7 +220,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
       }
       return next;
     });
-  }, [scheduleMap]);
+  }, [scheduleMap, state.classes]);
 
   const handleSaveChanges = () => {
     const updates = Object.entries(pendingSchedules).map(([key, data]) => {
@@ -522,8 +526,16 @@ export function MatrixSchedule({ department }: { department: Department }) {
                 <tr>
                   <th colSpan={3} className="border border-slate-300 p-2 bg-slate-200 font-semibold sticky left-0 z-30 w-[320px]">班级</th>
                   {classes.map(c => (
-                    <th key={c.id} colSpan={2} className="border border-slate-300 p-2 font-bold text-slate-800 bg-slate-100">
-                      {getFullClassName(c)}
+                    <th key={c.id} colSpan={2} className={`border border-slate-300 p-2 font-bold text-slate-800 ${c.status === '外出实习' ? 'bg-orange-50 text-orange-700' : 'bg-slate-100'}`}>
+                      <div className="flex flex-col items-center justify-center gap-1">
+                        <span>{getFullClassName(c)}</span>
+                        {c.status === '外出实习' && (
+                          <span className="text-[10px] bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded font-bold">外出实习 (不排课)</span>
+                        )}
+                        {c.status === '实习返校' && (
+                          <span className="text-[10px] bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded font-bold">实习返校</span>
+                        )}
+                      </div>
                     </th>
                   ))}
                 </tr>
@@ -571,6 +583,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
                   <th colSpan={2} className="border border-slate-300 p-2 bg-slate-200 font-semibold sticky left-0 z-30">总课时</th>
                   <th className="border border-slate-300 p-2 bg-slate-200 font-bold text-indigo-700 sticky left-[256px] z-30">
                     {classes.reduce((grandSum, c) => {
+                      if (c.status === '外出实习' || c.status === '已毕业') return grandSum;
                       return grandSum + filteredSubjects.reduce((classSum, subject) => {
                         const key = `${c.id}:::${subject.id}`;
                         const existingGlobal = scheduleMap[key];
@@ -581,7 +594,8 @@ export function MatrixSchedule({ department }: { department: Department }) {
                     }, 0)}
                   </th>
                   {classes.map(c => {
-                    const classTotal = filteredSubjects.reduce((sum, subject) => {
+                    const isClassDisabled = c.status === '外出实习' || c.status === '已毕业';
+                    const classTotal = isClassDisabled ? 0 : filteredSubjects.reduce((sum, subject) => {
                       const key = `${c.id}:::${subject.id}`;
                       const existingGlobal = scheduleMap[key];
                       const pending = pendingSchedules[key];
@@ -589,8 +603,8 @@ export function MatrixSchedule({ department }: { department: Department }) {
                       return sum + hours;
                     }, 0);
                     return (
-                      <th key={c.id} colSpan={2} className="border border-slate-300 p-2 text-indigo-700 bg-indigo-50/50 font-bold">
-                        {classTotal > 0 ? classTotal : ''}
+                      <th key={c.id} colSpan={2} className={`border border-slate-300 p-2 font-bold ${isClassDisabled ? 'text-slate-400 bg-slate-50' : 'text-indigo-700 bg-indigo-50/50'}`}>
+                        {isClassDisabled ? '不排课' : (classTotal > 0 ? classTotal : '')}
                       </th>
                     );
                   })}
@@ -612,6 +626,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
                 {filteredSubjects.map((subject, index) => {
                   // Calculate total hours for this subject across currently shown classes
                   const totalHours = classes.reduce((sum, c) => {
+                    if (c.status === '外出实习' || c.status === '已毕业') return sum;
                     const key = `${c.id}:::${subject.id}`;
                     const existingGlobal = scheduleMap[key];
                     const pending = pendingSchedules[key];
@@ -630,9 +645,10 @@ export function MatrixSchedule({ department }: { department: Department }) {
                         const existingGlobal = scheduleMap[key];
                         const pending = pendingSchedules[key];
                         
-                        const teacherId = pending ? pending.teacherId : (existingGlobal?.teacherId || '');
-                        const hours = pending ? pending.hours : (existingGlobal?.hours || '');
-                        const isModified = !!pending;
+                        const isClassDisabled = c.status === '外出实习' || c.status === '已毕业';
+                        const teacherId = isClassDisabled ? '' : (pending ? pending.teacherId : (existingGlobal?.teacherId || ''));
+                        const hours = isClassDisabled ? '' : (pending ? pending.hours : (existingGlobal?.hours || ''));
+                        const isModified = isClassDisabled ? false : !!pending;
                         
                         return (
                           <ScheduleCell
@@ -643,7 +659,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
                             hours={hours}
                             isModified={isModified}
                             teachers={state.teachers}
-                            canEdit={canEdit}
+                            canEdit={canEdit && !isClassDisabled}
                             onChange={handleCellChange}
                           />
                         );
