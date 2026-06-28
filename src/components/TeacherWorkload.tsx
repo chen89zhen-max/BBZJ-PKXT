@@ -98,7 +98,7 @@ export function TeacherWorkload() {
   const filteredChartClasses = useMemo(() => {
     return state.classes.filter((c) => {
       const isAdmin =
-        !c.name.includes("(复排)") && !c.name.includes("（复排）");
+        !c.name.includes("(复排)") && !c.name.includes("（复排）") && c.relationType !== "split" && c.relationType !== "merged";
       if (!isAdmin) return false;
       if (c.status === "已毕业" || c.status === "合并解散") return false;
 
@@ -125,7 +125,7 @@ export function TeacherWorkload() {
   // Classes count metrics (reactive to filters)
   const classMetrics = useMemo(() => {
     const adminClasses = state.classes.filter(
-      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
+      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）") && c.relationType !== "split" && c.relationType !== "merged",
     );
     const filtered = adminClasses.filter((c) => {
       if (chartFilters.gradeId !== "all" && c.gradeId !== chartFilters.gradeId)
@@ -161,7 +161,7 @@ export function TeacherWorkload() {
   // Student enrollment metrics (reactive to filters)
   const studentMetrics = useMemo(() => {
     const adminClasses = state.classes.filter(
-      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
+      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）") && c.relationType !== "split" && c.relationType !== "merged",
     );
     const filtered = adminClasses.filter((c) => {
       if (chartFilters.gradeId !== "all" && c.gradeId !== chartFilters.gradeId)
@@ -210,7 +210,7 @@ export function TeacherWorkload() {
   // Total teaching hours (reactive to filters)
   const totalSchoolHours = useMemo(() => {
     const adminClasses = state.classes.filter(
-      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
+      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）") && c.relationType !== "split" && c.relationType !== "merged",
     );
     const filtered = adminClasses.filter((c) => {
       if (chartFilters.gradeId !== "all" && c.gradeId !== chartFilters.gradeId)
@@ -262,7 +262,7 @@ export function TeacherWorkload() {
         classIds.has(s.classId),
       );
       const teacherIds = new Set(
-        matchingSchedules.map((s) => s.teacherId).filter(Boolean),
+        matchingSchedules.flatMap((s) => [s.teacherId, s.assistantTeacherId].filter(Boolean)),
       );
       if (teacherIds.size > 0) {
         list = list.filter((t) => teacherIds.has(t.id));
@@ -282,7 +282,7 @@ export function TeacherWorkload() {
   // Grade-wise Student & Class Count (reactive to filters)
   const gradeStats = useMemo(() => {
     const adminClasses = state.classes.filter(
-      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
+      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）") && c.relationType !== "split" && c.relationType !== "merged",
     );
     const filteredClasses = adminClasses.filter((c) => {
       if (chartFilters.deptId !== "all" || chartFilters.majorId !== "all") {
@@ -328,6 +328,8 @@ export function TeacherWorkload() {
       (c) =>
         !c.name.includes("(复排)") &&
         !c.name.includes("（复排）") &&
+        c.relationType !== "split" &&
+        c.relationType !== "merged" &&
         c.status !== "已毕业" &&
         c.status !== "合并解散",
     );
@@ -445,7 +447,7 @@ export function TeacherWorkload() {
         return true;
       });
       const adminDeptClasses = deptClasses.filter(
-        (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
+        (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）") && c.relationType !== "split" && c.relationType !== "merged",
       );
       const studentCount = adminDeptClasses.reduce(
         (sum, c) => sum + (c.studentCount || 0),
@@ -500,7 +502,7 @@ export function TeacherWorkload() {
           (c) => c.majorId === major.id,
         );
         const adminMajorClasses = majorClasses.filter(
-          (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
+          (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）") && c.relationType !== "split" && c.relationType !== "merged",
         );
         const studentCount = adminMajorClasses.reduce(
           (sum, c) => sum + (c.studentCount || 0),
@@ -664,7 +666,7 @@ export function TeacherWorkload() {
     const data = filteredTeachers.map((teacher) => {
       const teacherSchedules = state.schedules.filter(
         (s) =>
-          s.teacherId === teacher.id &&
+          (s.teacherId === teacher.id || s.assistantTeacherId === teacher.id) &&
           s.hours > 0 &&
           state.classes.some((c) => c.id === s.classId && c.name) &&
           state.subjects.some((sub) => sub.id === s.subjectId && sub.name),
@@ -685,9 +687,10 @@ export function TeacherWorkload() {
           );
 
           const deptName = dept?.name || "未知专业部";
+          const isAssistant = schedule.assistantTeacherId === teacher.id;
           const fullClassName = grade
-            ? `${grade.name}${cls?.name}`
-            : cls?.name || "未知班级";
+            ? `${grade.name}${cls?.name}${isAssistant ? ' (双师)' : ''}`
+            : `${cls?.name || "未知班级"}${isAssistant ? ' (双师)' : ''}`;
 
           if (!acc[deptName]) {
             acc[deptName] = [];

@@ -6,8 +6,9 @@ import { SemesterPlanner } from './components/SemesterPlanner';
 import { Settings } from './components/Settings';
 import { UserManagement } from './components/UserManagement';
 import { ClassroomManager } from './components/ClassroomManager';
+import { TalentProgramManager } from './components/TalentProgramManager';
 import { Login } from './components/Login';
-import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle, Menu, ChevronLeft, LogOut, UserCog, Calendar, BarChart2, Building2 } from 'lucide-react';
+import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle, Menu, ChevronLeft, LogOut, UserCog, Calendar, BarChart2, Building2, BookOpen } from 'lucide-react';
 
 // 欢迎页动画组件已移除
 
@@ -190,6 +191,19 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
                   学期与学年规划
                 </button>
               )}
+              {canAccess('talent') && (
+                <button
+                  onClick={() => setActiveTab('talent')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'talent'
+                      ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-100'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-95'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  人才培养方案库
+                </button>
+              )}
               {canAccess('classroom') && (
                 <button
                   onClick={() => setActiveTab('classroom')}
@@ -240,6 +254,8 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
               <TeacherWorkload />
             ) : activeTab === 'planner' ? (
               <SemesterPlanner />
+            ) : activeTab === 'talent' ? (
+              <TalentProgramManager />
             ) : activeTab === 'classroom' ? (
               <ClassroomManager />
             ) : activeTab === 'settings' ? (

@@ -645,9 +645,14 @@ export function ClassroomManager() {
                         const grade = state.grades.find(
                           (g) => g.id === c.gradeId,
                         );
-                        const fullName = grade
-                          ? `${grade.name}${c.name}`
-                          : c.name;
+                        let fullName = c.name;
+                        if (grade && !c.name.includes(grade.name)) {
+                          fullName = `${grade.name}${c.name}`;
+                        }
+                        return { classItem: c, fullName };
+                      })
+                      .sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-CN"))
+                      .map(({ classItem: c, fullName }) => {
                         return (
                           <button
                             key={c.id}

@@ -19,6 +19,8 @@ import {
   SubjectType,
   User,
   Archive,
+  TalentProgram,
+  TalentProgramCourse,
 } from "./types";
 import { v4 as uuidv4 } from "uuid";
 
@@ -30,6 +32,7 @@ interface AppContextType {
     subjectId: string,
     teacherId: string,
     hours: number,
+    assistantTeacherId?: string,
   ) => void;
   batchUpdateSchedules: (
     updates: {
@@ -37,6 +40,7 @@ interface AppContextType {
       subjectId: string;
       teacherId: string;
       hours: number;
+      assistantTeacherId?: string;
     }[],
   ) => void;
 
@@ -98,6 +102,7 @@ interface AppContextType {
   addClassCategory: (name: string) => void;
   deleteClassCategory: (id: string) => void;
   updateClassCategoryHours: (id: string, hours: number) => void;
+  updateClassCategoryGradeHours: (id: string, gradeId: string, hours: number) => void;
 
   // Buildings & Classrooms
   addBuilding: (name: string) => void;
@@ -139,6 +144,16 @@ interface AppContextType {
   updateClassStatus: (
     classId: string,
     status: "正常在校" | "外出实习" | "实习返校" | "已毕业" | "合并解散",
+  ) => void;
+
+  // Talent Programs
+  addTalentProgram: (program: Omit<TalentProgram, "id">) => TalentProgram;
+  updateTalentProgram: (program: TalentProgram) => void;
+  deleteTalentProgram: (id: string) => void;
+  importTalentProgramToSchedules: (
+    programId: string,
+    classIds: string[],
+    term: number,
   ) => void;
 
   connected: boolean;
@@ -200,6 +215,7 @@ export const AppProvider: React.FC<{
     subjectId: string,
     teacherId: string,
     hours: number,
+    assistantTeacherId?: string,
   ) => {
     const existingIndex = state.schedules.findIndex(
       (s) => s.classId === classId && s.subjectId === subjectId,
@@ -214,10 +230,18 @@ export const AppProvider: React.FC<{
           ...newSchedules[existingIndex],
           teacherId,
           hours,
+          assistantTeacherId: assistantTeacherId || undefined,
         };
       }
     } else if (hours > 0) {
-      newSchedules.push({ id: uuidv4(), classId, subjectId, teacherId, hours });
+      newSchedules.push({
+        id: uuidv4(),
+        classId,
+        subjectId,
+        teacherId,
+        hours,
+        assistantTeacherId: assistantTeacherId || undefined,
+      });
     }
 
     broadcastState({ ...state, schedules: newSchedules });
@@ -229,12 +253,13 @@ export const AppProvider: React.FC<{
       subjectId: string;
       teacherId: string;
       hours: number;
+      assistantTeacherId?: string;
     }[],
   ) => {
     let newSchedules = [...state.schedules];
 
     updates.forEach((update) => {
-      const { classId, subjectId, teacherId, hours } = update;
+      const { classId, subjectId, teacherId, hours, assistantTeacherId } = update;
       const existingIndex = newSchedules.findIndex(
         (s) => s.classId === classId && s.subjectId === subjectId,
       );
@@ -247,6 +272,7 @@ export const AppProvider: React.FC<{
             ...newSchedules[existingIndex],
             teacherId,
             hours,
+            assistantTeacherId: assistantTeacherId || undefined,
           };
         }
       } else if (hours > 0) {
@@ -256,6 +282,7 @@ export const AppProvider: React.FC<{
           subjectId,
           teacherId,
           hours,
+          assistantTeacherId: assistantTeacherId || undefined,
         });
       }
     });
@@ -766,6 +793,22 @@ export const AppProvider: React.FC<{
       ),
     });
   };
+  const updateClassCategoryGradeHours = (id: string, gradeId: string, hours: number) => {
+    broadcastState({
+      ...state,
+      classCategories: state.classCategories.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              gradeHours: {
+                ...(c.gradeHours || {}),
+                [gradeId]: hours,
+              },
+            }
+          : c,
+      ),
+    });
+  };
 
   // Buildings & Classrooms
   const addBuilding = (name: string) => {
@@ -1089,6 +1132,77 @@ export const AppProvider: React.FC<{
     });
   };
 
+  // Talent Programs management
+  const addTalentProgram = (program: Omit<TalentProgram, "id">) => {
+    const currentPrograms = state.talentPrograms || [];
+    const newProg = { ...program, id: uuidv4() };
+    broadcastState({
+      ...state,
+      talentPrograms: [...currentPrograms, newProg],
+    });
+    return newProg;
+  };
+
+  const updateTalentProgram = (program: TalentProgram) => {
+    const currentPrograms = state.talentPrograms || [];
+    broadcastState({
+      ...state,
+      talentPrograms: currentPrograms.map((p) =>
+        p.id === program.id ? program : p,
+      ),
+    });
+  };
+
+  const deleteTalentProgram = (id: string) => {
+    const currentPrograms = state.talentPrograms || [];
+    broadcastState({
+      ...state,
+      talentPrograms: currentPrograms.filter((p) => p.id !== id),
+    });
+  };
+
+  const importTalentProgramToSchedules = (
+    programId: string,
+    classIds: string[],
+    term: number,
+  ) => {
+    const program = (state.talentPrograms || []).find((p) => p.id === programId);
+    if (!program) return;
+
+    // Filter courses for this term
+    const termCourses = program.courses.filter((c) => c.term === term);
+    if (termCourses.length === 0) return;
+
+    let newSchedules = [...state.schedules];
+
+    classIds.forEach((classId) => {
+      termCourses.forEach((tc) => {
+        const existingIndex = newSchedules.findIndex(
+          (s) => s.classId === classId && s.subjectId === tc.subjectId,
+        );
+
+        if (existingIndex >= 0) {
+          // Update hours, preserve current teacher if any
+          newSchedules[existingIndex] = {
+            ...newSchedules[existingIndex],
+            hours: tc.weeklyHours,
+          };
+        } else {
+          // Create new schedule entry (teacher is empty initially)
+          newSchedules.push({
+            id: uuidv4(),
+            classId,
+            subjectId: tc.subjectId,
+            teacherId: "",
+            hours: tc.weeklyHours,
+          });
+        }
+      });
+    });
+
+    broadcastState({ ...state, schedules: newSchedules });
+  };
+
   const transitionAcademicYear = (newGradeName: string) => {
     // 1. Create automatic safety archives for all departments before the transition
     const timestampStr = new Date().toLocaleString("zh-CN", { hour12: false });
@@ -1189,6 +1303,7 @@ export const AppProvider: React.FC<{
         addClassCategory,
         deleteClassCategory,
         updateClassCategoryHours,
+        updateClassCategoryGradeHours,
         addBuilding,
         updateBuilding,
         deleteBuilding,
@@ -1207,6 +1322,10 @@ export const AppProvider: React.FC<{
         presetClassesForMajor,
         updateClassStatus,
         transitionAcademicYear,
+        addTalentProgram,
+        updateTalentProgram,
+        deleteTalentProgram,
+        importTalentProgramToSchedules,
         connected,
       }}
     >

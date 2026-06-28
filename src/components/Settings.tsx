@@ -655,7 +655,7 @@ export function Settings() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ password: password.trim() })
       });
       const verifyData = await verifyRes.json().catch(() => ({}));
       if (!verifyRes.ok || !verifyData.valid) {
@@ -682,7 +682,7 @@ export function Settings() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(pendingBackupData)
+        body: JSON.stringify({ ...pendingBackupData, password: password.trim() })
       });
 
       if (response.ok) {
@@ -1905,7 +1905,7 @@ export function Settings() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
-              body: JSON.stringify({ password })
+              body: JSON.stringify({ password: password.trim() })
             });
             const verifyData = await verifyRes.json().catch(() => ({}));
             if (verifyRes.ok && verifyData.valid) {
@@ -1947,7 +1947,7 @@ export function Settings() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
-              body: JSON.stringify({ password })
+              body: JSON.stringify({ password: password.trim() })
             });
             const verifyData = await verifyRes.json().catch(() => ({}));
             if (verifyRes.ok && verifyData.valid) {

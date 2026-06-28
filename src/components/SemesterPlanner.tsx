@@ -60,11 +60,14 @@ export function SemesterPlanner() {
     deleteClass,
     importClasses,
     updateClassCategoryHours,
+    updateClassCategoryGradeHours,
   } = useAppContext();
 
   const [activeSubTab, setActiveSubTab] = useState<
     "status" | "enrollment" | "forecast" | "switch"
   >("status");
+
+  const [selectedCategoryConfigId, setSelectedCategoryConfigId] = useState<string | null>(null);
 
   // Input states for forecast parameters (persisted in localStorage)
   const [onCampusHours, setOnCampusHours] = useState<number>(() => {
@@ -146,7 +149,9 @@ export function SemesterPlanner() {
     classroom: string;
     studentCount: number;
     headTeacherId: string;
-    status: "正常在校" | "外出实习" | "实习返校" | "已毕业";
+    status: "正常在校" | "外出实习" | "实习返校" | "已毕业" | "合并解散";
+    relationType?: 'normal' | 'merged' | 'split';
+    associatedClassIds?: string[];
   }>({
     majorId: "",
     gradeId: "",
@@ -156,6 +161,8 @@ export function SemesterPlanner() {
     studentCount: 40,
     headTeacherId: "",
     status: "正常在校",
+    relationType: "normal",
+    associatedClassIds: [],
   });
 
   const [importResultModal, setImportResultModal] = useState<{
@@ -239,6 +246,8 @@ export function SemesterPlanner() {
       studentCount: 40,
       headTeacherId: "",
       status: "正常在校",
+      relationType: "normal",
+      associatedClassIds: [],
     });
     setEditingClassId(null);
     setShowClassModal(true);
@@ -254,6 +263,8 @@ export function SemesterPlanner() {
       studentCount: cls.studentCount || 0,
       headTeacherId: cls.headTeacherId || "",
       status: cls.status || "正常在校",
+      relationType: cls.relationType || "normal",
+      associatedClassIds: cls.associatedClassIds || [],
     });
     setEditingClassId(cls.id);
     setShowClassModal(true);
@@ -446,10 +457,21 @@ export function SemesterPlanner() {
     const category = state.classCategories.find(
       (cc: any) => cc.name === cls.type,
     );
-    if (category && category.weeklyHours !== undefined) {
-      return category.weeklyHours;
+    let baseHours = getDefaultWeeklyHours(cls.type);
+    if (category) {
+      if (category.name === "普通班" && cls.gradeId && category.gradeHours?.[cls.gradeId] !== undefined) {
+        baseHours = category.gradeHours[cls.gradeId];
+      } else if (category.weeklyHours !== undefined) {
+        baseHours = category.weeklyHours;
+      }
     }
-    return getDefaultWeeklyHours(cls.type);
+
+    // Add extra assistant hours from schedules for this class
+    const extraAssistantHours = state.schedules
+      .filter((s) => s.classId === cls.id && s.assistantTeacherId && s.assistantTeacherId !== "")
+      .reduce((sum, s) => sum + s.hours, 0);
+
+    return baseHours + extraAssistantHours;
   };
 
   // 2. Department Forecast Calculations
@@ -471,7 +493,7 @@ export function SemesterPlanner() {
       deptClasses.forEach((c) => {
         const status = getClassStatus(c);
         const isAdmin =
-          !c.name.includes("(复排)") && !c.name.includes("（复排）");
+          !c.name.includes("(复排)") && !c.name.includes("（复排）") && c.relationType !== "split" && c.relationType !== "merged";
 
         if (status !== "已毕业" && status !== "合并解散") {
           totalWeeklyHours += getClassWeeklyHours(c);
@@ -514,6 +536,7 @@ export function SemesterPlanner() {
     classes,
     teachers,
     state.classCategories,
+    state.schedules,
     internshipHours,
     teacherStandardHours,
   ]);
@@ -536,7 +559,7 @@ export function SemesterPlanner() {
       majorClasses.forEach((c) => {
         const status = getClassStatus(c);
         const isAdmin =
-          !c.name.includes("(复排)") && !c.name.includes("（复排）");
+          !c.name.includes("(复排)") && !c.name.includes("（复排）") && c.relationType !== "split" && c.relationType !== "merged";
 
         if (status !== "已毕业" && status !== "合并解散") {
           totalWeeklyHours += getClassWeeklyHours(c);
@@ -588,6 +611,7 @@ export function SemesterPlanner() {
     teachers,
     state.classCategories,
     state.subjects,
+    state.schedules,
     internshipHours,
     teacherStandardHours,
   ]);
@@ -614,7 +638,10 @@ export function SemesterPlanner() {
               c.status !== "合并解散"
             );
           })
-          .reduce((sum, sch) => sum + sch.hours, 0);
+          .reduce((sum, sch) => {
+            const hasAssistant = sch.assistantTeacherId && sch.assistantTeacherId !== "";
+            return sum + sch.hours + (hasAssistant ? sch.hours : 0);
+          }, 0);
 
         const subTeachers = teachers.filter(
           (t) => t.primarySubject === subName,
@@ -1514,47 +1541,177 @@ export function SemesterPlanner() {
 
               {/* Requirement 2: Custom Class Type Hours Config Tool */}
               <div className="mt-6 pt-6 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                    各类型班级的周教学标准课时设置：
-                  </h4>
-                  <span className="text-[11px] text-slate-400">
-                    修改后将直接实时联动排课系统的算力内核与师资缺口测算
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+                      各类型班级的周教学标准课时设置 (分年级精细化)
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      支持为不同班级类型、针对不同年级进行差异化课时设定，精准满足教学规划需求
+                    </p>
+                  </div>
+                  <span className="text-[11px] text-indigo-600 bg-indigo-50/60 px-2.5 py-1 rounded-full font-medium shrink-0 self-start sm:self-center">
+                    ✨ 实时联动内核与师资缺口测算
                   </span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                  {state.classCategories.map((cat) => {
-                    const value =
-                      cat.weeklyHours !== undefined
-                        ? cat.weeklyHours
-                        : getDefaultWeeklyHours(cat.name);
-                    return (
-                      <div
-                        key={cat.id}
-                        className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex items-center justify-between hover:border-slate-300 transition-colors"
-                      >
-                        <span className="text-xs font-bold text-slate-700 truncate max-w-[100px]">
-                          {cat.name}
-                        </span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <input
-                            type="number"
-                            value={value}
-                            onChange={(e) =>
-                              updateClassCategoryHours(
-                                cat.id,
-                                parseInt(e.target.value) || 0,
-                              )
-                            }
-                            className="w-12 text-center bg-white border border-slate-300 rounded px-1 py-0.5 text-xs font-bold text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          />
-                          <span className="text-[10px] text-slate-400">节</span>
+
+                {state.classCategories.length > 0 ? (() => {
+                  const activeCategory = state.classCategories.find(c => c.id === selectedCategoryConfigId) || state.classCategories[0];
+                  const activeCatId = activeCategory?.id;
+                  const globalDefaultValue = activeCategory
+                    ? (activeCategory.weeklyHours !== undefined ? activeCategory.weeklyHours : getDefaultWeeklyHours(activeCategory.name))
+                    : 14;
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      {/* Left Sidebar: Class Category List */}
+                      <div className="md:col-span-1 bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm flex flex-col gap-2">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1 mb-1">
+                          选择班级类型
+                        </div>
+                        <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
+                          {state.classCategories.map((cat) => {
+                            const isSelected = cat.id === activeCatId;
+                            const curVal = cat.weeklyHours !== undefined ? cat.weeklyHours : getDefaultWeeklyHours(cat.name);
+                            const gradeOverridesCount = cat.gradeHours ? Object.keys(cat.gradeHours).length : 0;
+
+                            return (
+                              <button
+                                key={cat.id}
+                                onClick={() => setSelectedCategoryConfigId(cat.id)}
+                                className={`w-full text-left p-3 rounded-xl transition-all flex items-center justify-between border ${
+                                  isSelected
+                                    ? "bg-indigo-50 border-indigo-200 text-indigo-950 font-bold shadow-sm ring-1 ring-indigo-150"
+                                    : "bg-slate-50/50 hover:bg-slate-50 border-slate-100 hover:border-slate-200 text-slate-700"
+                                }`}
+                              >
+                                <div className="flex flex-col min-w-0 pr-2">
+                                  <span className="text-xs truncate">{cat.name}</span>
+                                  {gradeOverridesCount > 0 && (
+                                    <span className={`text-[10px] mt-0.5 font-medium ${isSelected ? "text-indigo-600" : "text-slate-400"}`}>
+                                      {gradeOverridesCount} 个年级已个性化
+                                    </span>
+                                  )}
+                                </div>
+                                <div className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold ${
+                                  isSelected ? "bg-indigo-200/60 text-indigo-800" : "bg-slate-200/60 text-slate-600"
+                                }`}>
+                                  {curVal}节
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+
+                      {/* Right Detail Panel: Editor */}
+                      <div className="md:col-span-2 bg-gradient-to-br from-slate-50/40 via-white to-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
+                        {activeCategory ? (
+                          <>
+                            {/* Global Default Setting */}
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-indigo-50/30 border border-indigo-100/50 p-4 rounded-xl gap-3">
+                              <div>
+                                <span className="text-[11px] text-indigo-700 font-bold uppercase tracking-wider block">
+                                  全局标准配置
+                                </span>
+                                <h5 className="text-sm font-extrabold text-slate-800 mt-0.5">
+                                  {activeCategory.name} 统一默认周课时
+                                </h5>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  此项为该类型的全局基准课时，未单独设置年级的班级将自动沿用此数值。
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2 self-start sm:self-center shrink-0 bg-white px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm">
+                                <input
+                                  type="number"
+                                  value={globalDefaultValue}
+                                  onChange={(e) =>
+                                    updateClassCategoryHours(
+                                      activeCategory.id,
+                                      parseInt(e.target.value) || 0,
+                                    )
+                                  }
+                                  className="w-14 text-center bg-slate-50 border border-indigo-200 rounded px-1.5 py-1 text-xs font-bold text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white"
+                                />
+                                <span className="text-xs text-indigo-800 font-medium">节 / 周</span>
+                              </div>
+                            </div>
+
+                            {/* Grade Overrides Setting */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2.5 px-1">
+                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                  按年级独立精细化调整
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  (留空或不填即自动继承全局标准)
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[220px] overflow-y-auto pr-1">
+                                {state.grades.map((grade: any) => {
+                                  const hasOverride = activeCategory.gradeHours?.[grade.id] !== undefined;
+                                  const gradeValue = hasOverride
+                                    ? activeCategory.gradeHours[grade.id]
+                                    : globalDefaultValue;
+
+                                  return (
+                                    <div
+                                      key={grade.id}
+                                      className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                                        hasOverride
+                                          ? "bg-indigo-50/10 border-indigo-200/80 shadow-sm"
+                                          : "bg-white border-slate-100 hover:border-slate-200"
+                                      }`}
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="text-xs font-bold text-slate-700">
+                                          {grade.name}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 mt-0.5">
+                                          {hasOverride ? "🟢 独立配置" : `⚪ 继承: ${globalDefaultValue}节`}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <input
+                                          type="number"
+                                          value={gradeValue}
+                                          onChange={(e) =>
+                                            updateClassCategoryGradeHours(
+                                              activeCategory.id,
+                                              grade.id,
+                                              parseInt(e.target.value) || 0,
+                                            )
+                                          }
+                                          className={`w-12 text-center border rounded px-1.5 py-1 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                                            hasOverride
+                                              ? "bg-white border-indigo-300 text-indigo-700"
+                                              : "bg-slate-50 border-slate-200 text-slate-600 focus:bg-white"
+                                          }`}
+                                        />
+                                        <span className="text-[11px] text-slate-400 font-medium">节</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                            <Sparkles className="w-8 h-8 text-slate-300 mb-2" />
+                            <span className="text-xs">请在左侧选择一个班级类型进行调整</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })() : (
+                  <div className="text-center py-6 text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl">
+                    未找到班级类型
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2383,6 +2540,86 @@ export function SemesterPlanner() {
                     <option value="合并解散">合并解散</option>
                   </select>
                 </div>
+
+                <div className="col-span-2 border-t border-slate-100 pt-3">
+                  <label className="block text-xs font-bold text-slate-500 mb-1">
+                    班级关系类型
+                  </label>
+                  <select
+                    value={classForm.relationType || 'normal'}
+                    onChange={(e) =>
+                      setClassForm({
+                        ...classForm,
+                        relationType: e.target.value as any,
+                        associatedClassIds: [], // Clear on switch
+                      })
+                    }
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="normal">行政班 (普通)</option>
+                    <option value="merged">合班 (多个班级合并上部分课程)</option>
+                    <option value="split">分流班 (某行政班拆分出来上部分课程)</option>
+                  </select>
+                </div>
+
+                {classForm.relationType === 'merged' && (
+                  <div className="col-span-2 bg-purple-50/50 p-3 rounded-lg border border-purple-100">
+                    <label className="block text-xs font-bold text-purple-700 mb-2">
+                      选择合并的行政班级 (多选)
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto">
+                      {state.classes
+                        .filter(c => c.gradeId === classForm.gradeId && c.id !== editingClassId && c.relationType !== 'merged' && c.relationType !== 'split')
+                        .map(c => {
+                          const isChecked = (classForm.associatedClassIds || []).includes(c.id);
+                          return (
+                            <label key={c.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  const currentIds = classForm.associatedClassIds || [];
+                                  const nextIds = e.target.checked
+                                    ? [...currentIds, c.id]
+                                    : currentIds.filter(id => id !== c.id);
+                                  setClassForm({ ...classForm, associatedClassIds: nextIds });
+                                }}
+                                className="rounded text-purple-600 focus:ring-purple-500"
+                              />
+                              {state.grades.find(g => g.id === c.gradeId)?.name || ''}{c.name}
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {classForm.relationType === 'split' && (
+                  <div className="col-span-2 bg-sky-50/50 p-3 rounded-lg border border-sky-100">
+                    <label className="block text-xs font-bold text-sky-700 mb-1">
+                      选择所属源行政班
+                    </label>
+                    <select
+                      value={classForm.associatedClassIds?.[0] || ''}
+                      onChange={(e) =>
+                        setClassForm({
+                          ...classForm,
+                          associatedClassIds: e.target.value ? [e.target.value] : [],
+                        })
+                      }
+                      className="w-full px-3 py-1.5 border border-sky-300 rounded-lg text-sm bg-white focus:ring-1 focus:ring-sky-500 outline-none text-slate-700"
+                    >
+                      <option value="">-- 请选择源班级 --</option>
+                      {state.classes
+                        .filter(c => c.gradeId === classForm.gradeId && c.id !== editingClassId && c.relationType !== 'merged' && c.relationType !== 'split')
+                        .map(c => (
+                          <option key={c.id} value={c.id}>
+                            {state.grades.find(g => g.id === c.gradeId)?.name || ''}{c.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
 

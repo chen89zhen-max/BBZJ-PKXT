@@ -12,6 +12,7 @@ WORKDIR /app
 COPY --from=build /app/package*.json ./
 RUN npm ci --omit=dev && npm install -g tsx
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/data ./data
 COPY server.ts ./
 COPY src/types.ts ./src/
 

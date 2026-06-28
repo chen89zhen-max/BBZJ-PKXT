@@ -13,6 +13,7 @@ import { Archive } from '../types';
     classId, 
     subjectId, 
     teacherId, 
+    assistantTeacherId,
     hours, 
     isModified, 
     teachers, 
@@ -22,25 +23,85 @@ import { Archive } from '../types';
     classId: string, 
     subjectId: string, 
     teacherId: string, 
+    assistantTeacherId?: string,
     hours: number | string, 
     isModified: boolean, 
     teachers: Teacher[], 
     canEdit: boolean,
-    onChange: (classId: string, subjectId: string, field: 'teacherId' | 'hours', value: string | number) => void 
+    onChange: (classId: string, subjectId: string, field: 'teacherId' | 'hours' | 'assistantTeacherId', value: string | number) => void 
   }) => {
+    const [showAssistant, setShowAssistant] = useState(!!assistantTeacherId);
+
+    useEffect(() => {
+      if (assistantTeacherId) {
+        setShowAssistant(true);
+      }
+    }, [assistantTeacherId]);
+
   return (
     <React.Fragment>
-          <td className={`border border-slate-300 p-0 relative group ${isModified ? 'bg-amber-50/50' : ''}`}>
-            <SearchableTeacherSelect
-              value={teacherId}
-              onChange={(val) => onChange(classId, subjectId, 'teacherId', val)}
-              teachers={teachers}
-              disabled={!canEdit}
-              placeholder=""
-              className="h-full"
-              buttonClassName={`w-full h-full min-h-[40px] px-2 py-1 bg-transparent border-none outline-none focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500 text-center cursor-pointer group-hover:bg-indigo-50/50 transition-colors flex items-center justify-center ${isModified ? 'text-amber-700 font-medium' : ''}`}
-              hideChevron
-            />
+          <td className={`border border-slate-300 p-1 relative group min-w-[130px] ${isModified ? 'bg-amber-50/50' : ''}`}>
+            <div className="flex flex-col gap-1 min-h-[40px] justify-center">
+              <div className="flex items-center gap-1">
+                {showAssistant && <span className="text-[9px] font-bold bg-slate-200 px-1 py-0.5 rounded text-slate-600 shrink-0 select-none">主</span>}
+                <div className="flex-1">
+                  <SearchableTeacherSelect
+                    value={teacherId}
+                    onChange={(val) => onChange(classId, subjectId, 'teacherId', val)}
+                    teachers={teachers}
+                    disabled={!canEdit}
+                    placeholder=""
+                    className="h-full"
+                    buttonClassName={`w-full px-1.5 py-0.5 bg-transparent border-none outline-none focus-within:ring-1 focus-within:ring-indigo-500 text-center cursor-pointer hover:bg-slate-50 rounded transition-colors text-sm font-medium ${isModified ? 'text-amber-700 font-semibold' : ''}`}
+                    hideChevron
+                  />
+                </div>
+              </div>
+
+              {showAssistant && (
+                <div className="flex items-center gap-1 border-t border-dashed border-slate-200 pt-1">
+                  <span className="text-[9px] font-bold bg-indigo-100 px-1 py-0.5 rounded text-indigo-600 shrink-0 select-none">助</span>
+                  <div className="flex-1">
+                    <SearchableTeacherSelect
+                      value={assistantTeacherId === 'unassigned' ? '' : (assistantTeacherId || '')}
+                      onChange={(val) => onChange(classId, subjectId, 'assistantTeacherId', val || 'unassigned')}
+                      teachers={teachers}
+                      disabled={!canEdit}
+                      placeholder="(未指定)"
+                      className="h-full"
+                      buttonClassName="w-full px-1.5 py-0.5 bg-transparent border-none outline-none focus-within:ring-1 focus-within:ring-indigo-500 text-center cursor-pointer hover:bg-slate-50 rounded text-sm font-medium text-indigo-600"
+                      hideChevron
+                    />
+                  </div>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChange(classId, subjectId, 'assistantTeacherId', '');
+                        setShowAssistant(false);
+                      }}
+                      className="text-slate-400 hover:text-rose-500 text-[10px] px-1 font-bold shrink-0"
+                      title="移除助理/第二教师"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {!showAssistant && canEdit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAssistant(true);
+                    onChange(classId, subjectId, 'assistantTeacherId', 'unassigned');
+                  }}
+                  className="absolute right-0.5 bottom-0.5 opacity-0 group-hover:opacity-100 text-[8px] bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded font-bold shadow-sm transition-opacity"
+                >
+                  +双师
+                </button>
+              )}
+            </div>
           </td>
           <td className={`border border-slate-300 p-0 relative group ${isModified ? 'bg-amber-50/50' : ''}`}>
             <input
@@ -59,7 +120,7 @@ import { Archive } from '../types';
 ScheduleCell.displayName = 'ScheduleCell';
 
 export function MatrixSchedule({ department }: { department: Department }) {
-  const { state, user, batchUpdateSchedules, clearDepartmentSchedules, createArchive, restoreArchive, deleteArchive } = useAppContext();
+  const { state, user, batchUpdateSchedules, clearDepartmentSchedules, createArchive, restoreArchive, deleteArchive, importTalentProgramToSchedules } = useAppContext();
   
   const canEdit = useMemo(() => {
     if (!user) return false;
@@ -80,8 +141,13 @@ export function MatrixSchedule({ department }: { department: Department }) {
   const [showRestoreConfirm, setShowRestoreConfirm] = useState<string | null>(null);
   const [showDeleteArchiveConfirm, setShowDeleteArchiveConfirm] = useState<string | null>(null);
 
+  // Talent Program Import Modal states
+  const [showImportProgramModal, setShowImportProgramModal] = useState(false);
+  const [selectedProgramId, setSelectedProgramId] = useState('');
+  const [selectedTerm, setSelectedTerm] = useState(1);
+
   // Local state for pending edits
-  const [pendingSchedules, setPendingSchedules] = useState<Record<string, { teacherId: string, hours: number }>>({});
+  const [pendingSchedules, setPendingSchedules] = useState<Record<string, { teacherId: string, hours: number, assistantTeacherId?: string }>>({});
   const hasPendingChanges = Object.keys(pendingSchedules).length > 0;
 
   // Create a lookup map for faster access to schedules
@@ -188,7 +254,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
   }, [state.subjects, department.id, department.name]);
 
   // Handle cell updates - Memoized to prevent cell re-renders
-  const handleCellChange = useCallback((classId: string, subjectId: string, field: 'teacherId' | 'hours', value: string | number) => {
+  const handleCellChange = useCallback((classId: string, subjectId: string, field: 'teacherId' | 'hours' | 'assistantTeacherId', value: string | number) => {
     const cls = state.classes.find(c => c.id === classId);
     if (cls?.status === '外出实习' || cls?.status === '已毕业' || cls?.status === '合并解散') {
       return;
@@ -201,22 +267,28 @@ export function MatrixSchedule({ department }: { department: Department }) {
       
       let teacherId = existingPending ? existingPending.teacherId : (existingGlobal?.teacherId || '');
       let hours = existingPending ? existingPending.hours : (existingGlobal?.hours || 0);
+      let assistantTeacherId = existingPending ? existingPending.assistantTeacherId : (existingGlobal?.assistantTeacherId || '');
 
       if (field === 'teacherId') {
         teacherId = value as string;
         if (teacherId && hours === 0) hours = 2; // Default to 2 hours if just assigned a teacher
+      } else if (field === 'assistantTeacherId') {
+        assistantTeacherId = value as string;
       } else {
         hours = value as number;
       }
 
       // Check if it matches global state
-      const matchesGlobal = (existingGlobal?.teacherId || '') === teacherId && (existingGlobal?.hours || 0) === hours;
+      const matchesGlobal = 
+        (existingGlobal?.teacherId || '') === teacherId && 
+        (existingGlobal?.hours || 0) === hours &&
+        (existingGlobal?.assistantTeacherId || '') === assistantTeacherId;
 
       const next = { ...prev };
       if (matchesGlobal) {
         delete next[key];
       } else {
-        next[key] = { teacherId, hours };
+        next[key] = { teacherId, hours, assistantTeacherId };
       }
       return next;
     });
@@ -229,7 +301,8 @@ export function MatrixSchedule({ department }: { department: Department }) {
         classId,
         subjectId,
         teacherId: data.teacherId,
-        hours: data.hours
+        hours: data.hours,
+        assistantTeacherId: data.assistantTeacherId
       };
     });
     
@@ -372,10 +445,19 @@ export function MatrixSchedule({ department }: { department: Department }) {
         const pending = pendingSchedules[key];
         
         const teacherId = pending ? pending.teacherId : (existingGlobal?.teacherId || '');
+        const assistantTeacherId = pending ? (pending.assistantTeacherId || '') : (existingGlobal?.assistantTeacherId || '');
         const hours = pending ? pending.hours : (existingGlobal?.hours || 0);
         
         const teacher = state.teachers.find(t => t.id === teacherId);
-        classData.push(teacher?.name || '');
+        const assistantTeacher = state.teachers.find(t => t.id === assistantTeacherId);
+        let teacherDisplayName = teacher?.name || '';
+        if (assistantTeacher) {
+          teacherDisplayName += ` (助:${assistantTeacher.name})`;
+        } else if (assistantTeacherId === 'unassigned') {
+          teacherDisplayName += ` (助:未指定)`;
+        }
+        
+        classData.push(teacherDisplayName);
         classData.push(hours || '');
         totalHours += (hours || 0);
       });
@@ -502,6 +584,15 @@ export function MatrixSchedule({ department }: { department: Department }) {
             >
               {isFullscreen ? <><Minimize className="w-4 h-4" /> 退出全屏</> : <><Maximize className="w-4 h-4" /> 全屏排课</>}
             </button>
+            {canEdit && (
+              <button 
+                onClick={() => setShowImportProgramModal(true)}
+                className="flex items-center gap-1 px-3 py-1.5 bg-violet-50 text-violet-700 border border-violet-200 rounded-md hover:bg-violet-100 transition-colors text-sm font-medium shadow-sm"
+                title="从培养方案库导入本学期教学计划和周课时"
+              >
+                <History className="w-4 h-4 text-violet-600" /> 导入培养方案
+              </button>
+            )}
             <button 
               onClick={handleExportExcel}
               className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors text-sm font-medium"
@@ -545,7 +636,25 @@ export function MatrixSchedule({ department }: { department: Department }) {
                     return (
                     <th key={c.id} colSpan={2} className={`border border-slate-300 p-2 font-bold text-slate-800 ${isClassDisabled ? 'bg-slate-200 text-slate-500' : 'bg-slate-100'}`}>
                       <div className="flex flex-col items-center justify-center gap-1">
-                        <span>{getFullClassName(c)}</span>
+                        <span className="flex items-center gap-1.5 font-bold">
+                          {getFullClassName(c)}
+                          {c.relationType === 'merged' && (
+                            <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-bold">合</span>
+                          )}
+                          {c.relationType === 'split' && (
+                            <span className="text-[10px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded font-bold">分</span>
+                          )}
+                        </span>
+                        {c.relationType === 'merged' && c.associatedClassIds && c.associatedClassIds.length > 0 && (
+                          <span className="text-[10px] text-purple-600 font-normal">
+                            (合自: {c.associatedClassIds.map(id => state.classes.find(oc => oc.id === id)?.name || '').filter(Boolean).join(', ')})
+                          </span>
+                        )}
+                        {c.relationType === 'split' && c.associatedClassIds && c.associatedClassIds.length > 0 && (
+                          <span className="text-[10px] text-sky-600 font-normal">
+                            (源自: {c.associatedClassIds.map(id => state.classes.find(oc => oc.id === id)?.name || '').filter(Boolean).join(', ')})
+                          </span>
+                        )}
                         {c.status === '外出实习' && (
                           <span className="text-[10px] bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded font-bold">外出实习 (不排课)</span>
                         )}
@@ -670,6 +779,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
                         
                         const isClassDisabled = c.status === '外出实习' || c.status === '已毕业' || c.status === '合并解散';
                         const teacherId = isClassDisabled ? '' : (pending ? pending.teacherId : (existingGlobal?.teacherId || ''));
+                        const assistantTeacherId = isClassDisabled ? '' : (pending ? (pending.assistantTeacherId || '') : (existingGlobal?.assistantTeacherId || ''));
                         const hours = isClassDisabled ? '' : (pending ? pending.hours : (existingGlobal?.hours || ''));
                         const isModified = isClassDisabled ? false : !!pending;
                         
@@ -679,6 +789,7 @@ export function MatrixSchedule({ department }: { department: Department }) {
                             classId={c.id}
                             subjectId={subject.id}
                             teacherId={teacherId}
+                            assistantTeacherId={assistantTeacherId}
                             hours={hours}
                             isModified={isModified}
                             teachers={state.teachers}
@@ -832,6 +943,104 @@ export function MatrixSchedule({ department }: { department: Department }) {
         onConfirm={() => showDeleteArchiveConfirm && handleDeleteArchive(showDeleteArchiveConfirm)}
         onCancel={() => setShowDeleteArchiveConfirm(null)}
       />
+
+      {/* Import Program Modal */}
+      {showImportProgramModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
+              <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                <History className="w-5 h-5 text-indigo-600" /> 从培养方案库导入排课计划
+              </h3>
+              <button onClick={() => setShowImportProgramModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-lg">
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">选择人才培养方案</label>
+                <select
+                  value={selectedProgramId}
+                  onChange={(e) => setSelectedProgramId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- 请选择培养方案 --</option>
+                  {(state.talentPrograms || []).map(p => {
+                    const major = state.majors.find(m => m.id === p.majorId)?.name || '';
+                    const grade = state.grades.find(g => g.id === p.gradeId)?.name || '';
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({grade} - {major})
+                      </option>
+                    );
+                  })}
+                </select>
+                {(state.talentPrograms || []).length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">目前人才培养方案库为空，请先在培养方案库中创建。</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">选择执行学期</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[1, 2, 3, 4, 5, 6].map(term => (
+                    <button
+                      key={term}
+                      type="button"
+                      onClick={() => setSelectedTerm(term)}
+                      className={`py-1.5 border rounded-lg text-xs font-medium transition-all ${selectedTerm === term ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      第 {term} 学期
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100 text-xs text-indigo-800 space-y-1">
+                <p className="font-bold">💡 导入说明：</p>
+                <p>1. 系统将自动读取该方案在选定学期配置的所有课程与周课时。</p>
+                <p>2. 将把这些课程及课时一键填充到当前视图中所有匹配的班级。</p>
+                <p>3. 导入后会处于“待保存”状态，您可调整任课教师后再行保存，无损已有教师安排。</p>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-slate-50 rounded-b-xl">
+              <button
+                onClick={() => setShowImportProgramModal(false)}
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-100 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  if (!selectedProgramId) {
+                    alert('请选择人才培养方案！');
+                    return;
+                  }
+                  // Get classes to import
+                  const classIds = classes.map(c => c.id);
+                  if (classIds.length === 0) {
+                    alert('当前视图中没有可导入的班级！');
+                    return;
+                  }
+                  importTalentProgramToSchedules(selectedProgramId, classIds, selectedTerm);
+                  setShowImportProgramModal(false);
+                  setAlertMessage({
+                    title: '一键导入成功',
+                    message: `已成功将培养方案的课程及课时导入到当前筛选的 ${classIds.length} 个班级中，请分配任课教师并保存。`,
+                    type: 'info'
+                  });
+                }}
+                disabled={!selectedProgramId}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                开始一键导入
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
