@@ -41,11 +41,11 @@ export function SemesterPlanner() {
   // Input states for forecast parameters (persisted in localStorage)
   const [onCampusHours, setOnCampusHours] = useState<number>(() => {
     const saved = localStorage.getItem('semester_planner_on_campus_hours');
-    return saved ? parseInt(saved, 10) || 28 : 28;
+    return saved ? parseInt(saved, 10) || 31 : 31;
   });
   const [internshipHours, setInternshipHours] = useState<number>(() => {
     const saved = localStorage.getItem('semester_planner_internship_hours');
-    return saved ? parseInt(saved, 10) || 2 : 2;
+    return saved !== null && !isNaN(parseInt(saved, 10)) ? parseInt(saved, 10) : 0;
   });
   const [teacherStandardHours, setTeacherStandardHours] = useState<number>(() => {
     const saved = localStorage.getItem('semester_planner_teacher_standard_hours');
@@ -79,6 +79,10 @@ export function SemesterPlanner() {
 
   // For Forecast Tab multi-dimensional toggles
   const [forecastView, setForecastView] = useState<'dept' | 'major' | 'subject'>('dept');
+  
+  // Sort states for subject forecast
+  const [subjectSortField, setSubjectSortField] = useState<'name'|'type'|'hours'|'needed'|'actual'|'ratio'|'gap'>('gap');
+  const [subjectSortOrder, setSubjectSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // For Class Editing / Creation
   const [showClassModal, setShowClassModal] = useState<boolean>(false);
@@ -515,8 +519,22 @@ export function SemesterPlanner() {
         actualTeachersCount: subTeachers.length,
         gap: parseFloat((teachersNeeded - subTeachers.length).toFixed(1))
       };
-    }).sort((a, b) => b.totalWeeklyHours - a.totalWeeklyHours);
-  }, [state.subjects, state.schedules, state.classes, teachers, departments, teacherStandardHours]);
+    }).sort((a, b) => {
+      let valA: any = a[subjectSortField === 'hours' ? 'totalWeeklyHours' : subjectSortField === 'needed' ? 'teachersNeeded' : subjectSortField === 'actual' ? 'actualTeachersCount' : subjectSortField === 'ratio' ? 'gap' /* handled below */ : subjectSortField];
+      let valB: any = b[subjectSortField === 'hours' ? 'totalWeeklyHours' : subjectSortField === 'needed' ? 'teachersNeeded' : subjectSortField === 'actual' ? 'actualTeachersCount' : subjectSortField === 'ratio' ? 'gap' /* handled below */ : subjectSortField];
+      
+      if (subjectSortField === 'ratio') {
+         const ratioA = a.teachersNeeded === 0 ? 0 : a.actualTeachersCount / a.teachersNeeded;
+         const ratioB = b.teachersNeeded === 0 ? 0 : b.actualTeachersCount / b.teachersNeeded;
+         valA = ratioA;
+         valB = ratioB;
+      }
+      
+      if (valA < valB) return subjectSortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return subjectSortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [state.subjects, state.schedules, state.classes, teachers, departments, teacherStandardHours, subjectSortField, subjectSortOrder]);
 
   // Handle preset generator submission
   const handleGeneratePresets = (majorId: string) => {
@@ -1407,13 +1425,27 @@ export function SemesterPlanner() {
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-100 text-slate-600 font-bold text-xs uppercase">
                       <tr>
-                        <th className="px-6 py-3">学科名称</th>
-                        <th className="px-6 py-3">学科类别</th>
-                        <th className="px-6 py-3 text-right">已排课时需求/周</th>
-                        <th className="px-6 py-3 text-right">测算所需教师</th>
-                        <th className="px-6 py-3 text-right">现有专任教师</th>
-                        <th className="px-6 py-3 text-center w-64">师资配置比例</th>
-                        <th className="px-6 py-3 text-right">缺口/富余</th>
+                        <th className="px-6 py-3 cursor-pointer hover:bg-slate-200" onClick={() => { setSubjectSortOrder(subjectSortField === 'name' && subjectSortOrder === 'asc' ? 'desc' : 'asc'); setSubjectSortField('name'); }}>
+                          <div className="flex items-center gap-1">学科名称 {subjectSortField === 'name' && (subjectSortOrder === 'asc' ? '↑' : '↓')}</div>
+                        </th>
+                        <th className="px-6 py-3 cursor-pointer hover:bg-slate-200" onClick={() => { setSubjectSortOrder(subjectSortField === 'type' && subjectSortOrder === 'asc' ? 'desc' : 'asc'); setSubjectSortField('type'); }}>
+                          <div className="flex items-center gap-1">学科类别 {subjectSortField === 'type' && (subjectSortOrder === 'asc' ? '↑' : '↓')}</div>
+                        </th>
+                        <th className="px-6 py-3 text-right cursor-pointer hover:bg-slate-200" onClick={() => { setSubjectSortOrder(subjectSortField === 'hours' && subjectSortOrder === 'asc' ? 'desc' : 'asc'); setSubjectSortField('hours'); }}>
+                          <div className="flex items-center justify-end gap-1">已排课时需求/周 {subjectSortField === 'hours' && (subjectSortOrder === 'asc' ? '↑' : '↓')}</div>
+                        </th>
+                        <th className="px-6 py-3 text-right cursor-pointer hover:bg-slate-200" onClick={() => { setSubjectSortOrder(subjectSortField === 'needed' && subjectSortOrder === 'asc' ? 'desc' : 'asc'); setSubjectSortField('needed'); }}>
+                          <div className="flex items-center justify-end gap-1">测算所需教师 {subjectSortField === 'needed' && (subjectSortOrder === 'asc' ? '↑' : '↓')}</div>
+                        </th>
+                        <th className="px-6 py-3 text-right cursor-pointer hover:bg-slate-200" onClick={() => { setSubjectSortOrder(subjectSortField === 'actual' && subjectSortOrder === 'asc' ? 'desc' : 'asc'); setSubjectSortField('actual'); }}>
+                          <div className="flex items-center justify-end gap-1">现有专任教师 {subjectSortField === 'actual' && (subjectSortOrder === 'asc' ? '↑' : '↓')}</div>
+                        </th>
+                        <th className="px-6 py-3 text-center w-64 cursor-pointer hover:bg-slate-200" onClick={() => { setSubjectSortOrder(subjectSortField === 'ratio' && subjectSortOrder === 'asc' ? 'desc' : 'asc'); setSubjectSortField('ratio'); }}>
+                          <div className="flex items-center justify-center gap-1">师资配置比例 {subjectSortField === 'ratio' && (subjectSortOrder === 'asc' ? '↑' : '↓')}</div>
+                        </th>
+                        <th className="px-6 py-3 text-right cursor-pointer hover:bg-slate-200" onClick={() => { setSubjectSortOrder(subjectSortField === 'gap' && subjectSortOrder === 'asc' ? 'desc' : 'asc'); setSubjectSortField('gap'); }}>
+                          <div className="flex items-center justify-end gap-1">缺口/富余 {subjectSortField === 'gap' && (subjectSortOrder === 'asc' ? '↑' : '↓')}</div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">

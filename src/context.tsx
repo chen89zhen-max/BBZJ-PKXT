@@ -55,6 +55,16 @@ interface AppContextType {
   deleteClassCategory: (id: string) => void;
   updateClassCategoryHours: (id: string, hours: number) => void;
   
+  // Buildings & Classrooms
+  addBuilding: (name: string) => void;
+  updateBuilding: (id: string, name: string) => void;
+  deleteBuilding: (id: string) => void;
+  addFloor: (buildingId: string, level: string) => void;
+  deleteFloor: (buildingId: string, floorId: string) => void;
+  addClassroom: (buildingId: string, floorId: string, name: string) => void;
+  deleteClassroom: (buildingId: string, floorId: string, classroomId: string) => void;
+  assignClassToRoom: (buildingId: string, floorId: string, classroomId: string, classId: string | undefined) => void;
+  
   // Schedules
   clearSchedules: () => void;
   clearDepartmentSchedules: (departmentId: string) => void;
@@ -556,6 +566,120 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     });
   };
 
+  // Buildings & Classrooms
+  const addBuilding = (name: string) => {
+    broadcastState({
+      ...state,
+      buildings: [...(state.buildings || []), { id: uuidv4(), name, floors: [] }]
+    });
+  };
+
+  const updateBuilding = (id: string, name: string) => {
+    broadcastState({
+      ...state,
+      buildings: (state.buildings || []).map(b => b.id === id ? { ...b, name } : b)
+    });
+  };
+
+  const deleteBuilding = (id: string) => {
+    broadcastState({
+      ...state,
+      buildings: (state.buildings || []).filter(b => b.id !== id)
+    });
+  };
+
+  const addFloor = (buildingId: string, level: string) => {
+    broadcastState({
+      ...state,
+      buildings: (state.buildings || []).map(b => b.id === buildingId ? {
+        ...b,
+        floors: [...b.floors, { id: uuidv4(), level, classrooms: [] }]
+      } : b)
+    });
+  };
+
+  const deleteFloor = (buildingId: string, floorId: string) => {
+    broadcastState({
+      ...state,
+      buildings: (state.buildings || []).map(b => b.id === buildingId ? {
+        ...b,
+        floors: b.floors.filter(f => f.id !== floorId)
+      } : b)
+    });
+  };
+
+  const addClassroom = (buildingId: string, floorId: string, name: string) => {
+    broadcastState({
+      ...state,
+      buildings: (state.buildings || []).map(b => b.id === buildingId ? {
+        ...b,
+        floors: b.floors.map(f => f.id === floorId ? {
+          ...f,
+          classrooms: [...f.classrooms, { id: uuidv4(), name }]
+        } : f)
+      } : b)
+    });
+  };
+
+  const deleteClassroom = (buildingId: string, floorId: string, classroomId: string) => {
+    broadcastState({
+      ...state,
+      buildings: (state.buildings || []).map(b => b.id === buildingId ? {
+        ...b,
+        floors: b.floors.map(f => f.id === floorId ? {
+          ...f,
+          classrooms: f.classrooms.filter(c => c.id !== classroomId)
+        } : f)
+      } : b)
+    });
+  };
+
+  const assignClassToRoom = (buildingId: string, floorId: string, classroomId: string, classId: string | undefined) => {
+    const building = (state.buildings || []).find(b => b.id === buildingId);
+    const floor = building?.floors.find(f => f.id === floorId);
+    const classroom = floor?.classrooms.find(c => c.id === classroomId);
+    const roomName = classroom?.name || '';
+
+    // First, find if this class was already assigned to another room and clear it
+    let newBuildings = (state.buildings || []).map(b => ({
+      ...b,
+      floors: b.floors.map(f => ({
+        ...f,
+        classrooms: f.classrooms.map(c => {
+           // If assigning a class, remove it from any other room
+           if (classId && c.classId === classId && c.id !== classroomId) {
+             return { ...c, classId: undefined };
+           }
+           // Target room assignment
+           if (b.id === buildingId && f.id === floorId && c.id === classroomId) {
+             return { ...c, classId };
+           }
+           return c;
+        })
+      }))
+    }));
+
+    // Update the class's text field too
+    let newClasses = state.classes;
+    if (classId) {
+      newClasses = state.classes.map(c => 
+        c.id === classId ? { ...c, classroom: roomName } : 
+        (c.classroom === roomName ? { ...c, classroom: '' } : c) // Clear room for other class if they had it text-wise
+      );
+    } else {
+      // Removing a class from a room
+      newClasses = state.classes.map(c => 
+        c.classroom === roomName ? { ...c, classroom: '' } : c
+      );
+    }
+
+    broadcastState({
+      ...state,
+      buildings: newBuildings,
+      classes: newClasses
+    });
+  };
+
   // Archives
   const createArchive = (departmentId: string, name: string) => {
     // A department's schedules are those where the class belongs to a major in that department
@@ -771,6 +895,14 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
         addClassCategory,
         deleteClassCategory,
         updateClassCategoryHours,
+        addBuilding,
+        updateBuilding,
+        deleteBuilding,
+        addFloor,
+        deleteFloor,
+        addClassroom,
+        deleteClassroom,
+        assignClassToRoom,
         clearSchedules,
         clearDepartmentSchedules,
         createArchive,

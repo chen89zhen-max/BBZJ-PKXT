@@ -16,15 +16,18 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-me';
 // Initial State
 let state: AppState = {
   classCategories: [
-    { id: 'cat-1', name: '普通班', weeklyHours: 30 },
-    { id: 'cat-2', name: '培优班', weeklyHours: 34 },
-    { id: 'cat-3', name: '3+2', weeklyHours: 30 },
-    { id: 'cat-4', name: '3+4', weeklyHours: 30 },
-    { id: 'cat-5', name: '五年制', weeklyHours: 30 },
-    { id: 'cat-6', name: '中职云班', weeklyHours: 34 },
+    { id: 'cat-1', name: '普通班', weeklyHours: 31 },
+    { id: 'cat-2', name: '培优班', weeklyHours: 35 },
+    { id: 'cat-3', name: '3+2', weeklyHours: 31 },
+    { id: 'cat-4', name: '3+4', weeklyHours: 35 },
+    { id: 'cat-5', name: '五年制', weeklyHours: 31 },
+    { id: 'cat-6', name: '中职云班', weeklyHours: 35 },
     { id: 'cat-7', name: '综合高中普通', weeklyHours: 40 },
     { id: 'cat-8', name: '综合高中艺体', weeklyHours: 40 },
     { id: 'cat-9', name: '综合高中云班', weeklyHours: 40 },
+    { id: 'cat-10', name: '普通班（团队）', weeklyHours: 31 },
+    { id: 'cat-11', name: '3+2（团队）', weeklyHours: 31 },
+    { id: 'cat-12', name: '春招班', weeklyHours: 31 },
   ],
   departments: [
     { id: 'dept-1', name: '智能制造产业部' },
@@ -125,6 +128,38 @@ let state: AppState = {
   ],
   archives: [],
   users: [],
+  buildings: [
+    {
+      id: 'b-1',
+      name: '勤学楼',
+      floors: [
+        {
+          id: 'f-1-4',
+          level: '4层',
+          classrooms: [
+            { id: 'r-401', name: '勤401', classId: 'c-3' },
+            { id: 'r-402', name: '勤402', classId: 'c-4' }
+          ]
+        },
+        {
+          id: 'f-1-3',
+          level: '3层',
+          classrooms: [
+            { id: 'r-301', name: '勤301', classId: 'c-1' },
+            { id: 'r-302', name: '勤302', classId: 'c-2' }
+          ]
+        },
+        {
+          id: 'f-1-2',
+          level: '2层',
+          classrooms: [
+            { id: 'r-201', name: '勤201', classId: 'c-6' },
+            { id: 'r-206', name: '勤206', classId: 'c-5' }
+          ]
+        }
+      ]
+    }
+  ]
 };
 
 function loadState() {

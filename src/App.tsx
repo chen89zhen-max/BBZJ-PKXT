@@ -5,8 +5,9 @@ import { TeacherWorkload } from './components/TeacherWorkload';
 import { SemesterPlanner } from './components/SemesterPlanner';
 import { Settings } from './components/Settings';
 import { UserManagement } from './components/UserManagement';
+import { ClassroomManager } from './components/ClassroomManager';
 import { Login } from './components/Login';
-import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle, Menu, ChevronLeft, LogOut, UserCog, Calendar, BarChart2 } from 'lucide-react';
+import { LayoutDashboard, Users, Settings as SettingsIcon, Wifi, WifiOff, AlertTriangle, Menu, ChevronLeft, LogOut, UserCog, Calendar, BarChart2, Building2 } from 'lucide-react';
 
 // 欢迎页动画组件已移除
 
@@ -177,6 +178,19 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
                   学期与学年规划
                 </button>
               )}
+              {canAccess('classroom') && (
+                <button
+                  onClick={() => setActiveTab('classroom')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === 'classroom'
+                      ? 'bg-indigo-50 text-indigo-700'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <Building2 className="w-4 h-4" />
+                  教室安排
+                </button>
+              )}
               {canAccess('settings') && (
                 <button
                   onClick={() => setActiveTab('settings')}
@@ -214,6 +228,8 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
               <TeacherWorkload />
             ) : activeTab === 'planner' ? (
               <SemesterPlanner />
+            ) : activeTab === 'classroom' ? (
+              <ClassroomManager />
             ) : activeTab === 'settings' ? (
               <Settings />
             ) : activeTab === 'users' ? (

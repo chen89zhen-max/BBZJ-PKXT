@@ -15,6 +15,24 @@ export interface Grade {
   name: string;
 }
 
+export interface ClassroomDef {
+  id: string;
+  name: string;
+  classId?: string; // Currently assigned class ID
+}
+
+export interface Floor {
+  id: string;
+  level: string; // e.g., "1层", "2层"
+  classrooms: ClassroomDef[];
+}
+
+export interface Building {
+  id: string;
+  name: string;
+  floors: Floor[];
+}
+
 export interface Teacher {
   id: string;
   name: string;
@@ -91,4 +109,5 @@ export interface AppState {
   archives: Archive[];
   classCategories: ClassCategory[];
   users: User[];
+  buildings: Building[];
 }
