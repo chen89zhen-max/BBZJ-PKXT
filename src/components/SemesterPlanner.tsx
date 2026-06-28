@@ -300,6 +300,8 @@ export function SemesterPlanner() {
     reader.readAsBinaryString(file);
   };
 
+  const hasInitializedTargetCohort = React.useRef(false);
+
   // Initialize preset parameters for majors
   React.useEffect(() => {
     const initialPresets: typeof majorPresets = {};
@@ -313,7 +315,7 @@ export function SemesterPlanner() {
     setMajorPresets(initialPresets);
     
     // Auto-select latest grade as default cohort if empty
-    if (!targetCohort && state.grades.length > 0) {
+    if (!hasInitializedTargetCohort.current && state.grades.length > 0) {
       // Find the maximum cohort year, e.g. "2026级", guess "2027级"
       const cohorts = state.grades.map(g => parseInt(g.name.replace(/[^0-9]/g, ''))).filter(n => !isNaN(n));
       if (cohorts.length > 0) {
@@ -322,6 +324,7 @@ export function SemesterPlanner() {
       } else {
         setTargetCohort('2026级');
       }
+      hasInitializedTargetCohort.current = true;
     }
   }, [majors, state.grades, state.classCategories]);
 
@@ -380,16 +383,27 @@ export function SemesterPlanner() {
       let internshipCount = 0;
       let returnedCount = 0;
       let graduatedCount = 0;
+      let totalAdminClasses = 0;
 
       deptClasses.forEach(c => {
         const status = getClassStatus(c);
-        if (status === '已毕业' || status === '合并解散') {
-          graduatedCount++;
-        } else {
+        const isAdmin = !c.name.includes('(复排)') && !c.name.includes('（复排）');
+        
+        if (status !== '已毕业' && status !== '合并解散') {
           totalWeeklyHours += getClassWeeklyHours(c);
-          if (status === '正常在校') onCampusCount++;
-          else if (status === '实习返校') returnedCount++;
-          else if (status === '外出实习') internshipCount++;
+        }
+        
+        if (isAdmin) {
+          totalAdminClasses++;
+          if (status === '已毕业' || status === '合并解散') {
+            graduatedCount++;
+          } else if (status === '正常在校') {
+            onCampusCount++;
+          } else if (status === '实习返校') {
+            returnedCount++;
+          } else if (status === '外出实习') {
+            internshipCount++;
+          }
         }
       });
 
@@ -399,7 +413,7 @@ export function SemesterPlanner() {
       return {
         id: dept.id,
         name: dept.name,
-        totalClasses: deptClasses.length,
+        totalClasses: totalAdminClasses,
         onCampusCount,
         internshipCount,
         returnedCount,
@@ -423,16 +437,27 @@ export function SemesterPlanner() {
       let internshipCount = 0;
       let returnedCount = 0;
       let graduatedCount = 0;
+      let totalAdminClasses = 0;
 
       majorClasses.forEach(c => {
         const status = getClassStatus(c);
-        if (status === '已毕业' || status === '合并解散') {
-          graduatedCount++;
-        } else {
+        const isAdmin = !c.name.includes('(复排)') && !c.name.includes('（复排）');
+        
+        if (status !== '已毕业' && status !== '合并解散') {
           totalWeeklyHours += getClassWeeklyHours(c);
-          if (status === '正常在校') onCampusCount++;
-          else if (status === '实习返校') returnedCount++;
-          else if (status === '外出实习') internshipCount++;
+        }
+        
+        if (isAdmin) {
+          totalAdminClasses++;
+          if (status === '已毕业' || status === '合并解散') {
+            graduatedCount++;
+          } else if (status === '正常在校') {
+            onCampusCount++;
+          } else if (status === '实习返校') {
+            returnedCount++;
+          } else if (status === '外出实习') {
+            internshipCount++;
+          }
         }
       });
 
@@ -449,7 +474,7 @@ export function SemesterPlanner() {
         id: m.id,
         name: m.name,
         deptName: dept?.name || '无部门',
-        totalClasses: majorClasses.length,
+        totalClasses: totalAdminClasses,
         onCampusCount,
         internshipCount,
         returnedCount,

@@ -62,7 +62,8 @@ export function TeacherWorkload() {
 
   // Student enrollment metrics
   const studentMetrics = useMemo(() => {
-    const activeClasses = state.classes.filter(c => c.status !== '已毕业' && c.status !== '合并解散');
+    const adminClasses = state.classes.filter(c => !c.name.includes('(复排)') && !c.name.includes('（复排）'));
+    const activeClasses = adminClasses.filter(c => c.status !== '已毕业' && c.status !== '合并解散');
     const totalInSchool = activeClasses
       .filter(c => c.status === '正常在校')
       .reduce((sum, c) => sum + (c.studentCount || 0), 0);
@@ -79,7 +80,7 @@ export function TeacherWorkload() {
       totalInternship,
       totalReturned,
       grandTotal,
-      graduated: state.classes
+      graduated: adminClasses
         .filter(c => c.status === '已毕业')
         .reduce((sum, c) => sum + (c.studentCount || 0), 0)
     };
@@ -87,12 +88,13 @@ export function TeacherWorkload() {
 
   // Classes count metrics
   const classMetrics = useMemo(() => {
-    const total = state.classes.length;
-    const active = state.classes.filter(c => c.status !== '已毕业' && c.status !== '合并解散').length;
-    const inSchool = state.classes.filter(c => c.status === '正常在校').length;
-    const internship = state.classes.filter(c => c.status === '外出实习').length;
-    const returned = state.classes.filter(c => c.status === '实习返校').length;
-    const graduated = state.classes.filter(c => c.status === '已毕业').length;
+    const adminClasses = state.classes.filter(c => !c.name.includes('(复排)') && !c.name.includes('（复排）'));
+    const total = adminClasses.length;
+    const active = adminClasses.filter(c => c.status !== '已毕业' && c.status !== '合并解散').length;
+    const inSchool = adminClasses.filter(c => c.status === '正常在校').length;
+    const internship = adminClasses.filter(c => c.status === '外出实习').length;
+    const returned = adminClasses.filter(c => c.status === '实习返校').length;
+    const graduated = adminClasses.filter(c => c.status === '已毕业').length;
 
     return { total, active, inSchool, internship, returned, graduated };
   }, [state.classes]);
@@ -103,9 +105,10 @@ export function TeacherWorkload() {
   
   // Grade-wise Student & Class Count
   const gradeStats = useMemo(() => {
+    const adminClasses = state.classes.filter(c => !c.name.includes('(复排)') && !c.name.includes('（复排）'));
     const stages = ['高一', '高二', '高三', '已毕业'] as const;
     return stages.map(stage => {
-      const stageClasses = state.classes.filter(c => (c.stage || '高一') === stage);
+      const stageClasses = adminClasses.filter(c => (c.stage || '高一') === stage);
       const classCount = stageClasses.length;
       const studentCount = stageClasses.reduce((sum, c) => sum + (c.studentCount || 0), 0);
       return {
@@ -118,8 +121,9 @@ export function TeacherWorkload() {
 
   // Major-wise Student Distribution
   const majorStats = useMemo(() => {
+    const adminClasses = state.classes.filter(c => !c.name.includes('(复排)') && !c.name.includes('（复排）'));
     return state.majors.map(major => {
-      const majorClasses = state.classes.filter(c => c.majorId === major.id);
+      const majorClasses = adminClasses.filter(c => c.majorId === major.id);
       const studentCount = majorClasses.reduce((sum, c) => sum + (c.studentCount || 0), 0);
       const classCount = majorClasses.length;
       return {
@@ -135,7 +139,8 @@ export function TeacherWorkload() {
     const types: Record<string, number> = {};
     let totalActive = 0;
     state.classes.forEach(c => {
-      if (c.status !== '已毕业' && c.status !== '合并解散') {
+      const isAdmin = !c.name.includes('(复排)') && !c.name.includes('（复排）');
+      if (isAdmin && c.status !== '已毕业' && c.status !== '合并解散') {
         const type = c.type || '普通班';
         types[type] = (types[type] || 0) + 1;
         totalActive++;
@@ -166,7 +171,8 @@ export function TeacherWorkload() {
       const deptMajors = state.majors.filter(m => m.departmentId === dept.id);
       const deptMajorIds = new Set(deptMajors.map(m => m.id));
       const deptClasses = state.classes.filter(c => deptMajorIds.has(c.majorId));
-      const studentCount = deptClasses.reduce((sum, c) => sum + (c.studentCount || 0), 0);
+      const adminDeptClasses = deptClasses.filter(c => !c.name.includes('(复排)') && !c.name.includes('（复排）'));
+      const studentCount = adminDeptClasses.reduce((sum, c) => sum + (c.studentCount || 0), 0);
       const classIds = new Set(deptClasses.map(c => c.id));
       const deptSchedules = state.schedules.filter(s => classIds.has(s.classId));
       const totalHours = deptSchedules.reduce((sum, s) => sum + s.hours, 0);
@@ -181,12 +187,12 @@ export function TeacherWorkload() {
         id: dept.id,
         name: dept.name,
         majorCount: deptMajors.length,
-        classCount: deptClasses.length,
+        classCount: adminDeptClasses.length,
         studentCount,
         teacherCount: teachersInDept,
         subjectCount: deptSubjects,
         totalHours,
-        avgHoursPerClass: deptClasses.length > 0 ? (totalHours / deptClasses.length).toFixed(1) : '0'
+        avgHoursPerClass: adminDeptClasses.length > 0 ? (totalHours / adminDeptClasses.length).toFixed(1) : '0'
       };
     });
   }, [state.departments, state.majors, state.classes, state.teachers, state.schedules, state.subjects]);
@@ -195,23 +201,24 @@ export function TeacherWorkload() {
     return state.majors.map(major => {
       const dept = state.departments.find(d => d.id === major.departmentId);
       const majorClasses = state.classes.filter(c => c.majorId === major.id);
-      const studentCount = majorClasses.reduce((sum, c) => sum + (c.studentCount || 0), 0);
+      const adminMajorClasses = majorClasses.filter(c => !c.name.includes('(复排)') && !c.name.includes('（复排）'));
+      const studentCount = adminMajorClasses.reduce((sum, c) => sum + (c.studentCount || 0), 0);
       
       const classIds = new Set(majorClasses.map(c => c.id));
       const majorSchedules = state.schedules.filter(s => classIds.has(s.classId));
       const totalHours = majorSchedules.reduce((sum, s) => sum + s.hours, 0);
 
       // Active vs Internship
-      const inSchoolCount = majorClasses.filter(c => c.status === '正常在校').length;
-      const internshipCount = majorClasses.filter(c => c.status === '外出实习').length;
-      const returnedCount = majorClasses.filter(c => c.status === '实习返校').length;
-      const graduatedCount = majorClasses.filter(c => c.status === '已毕业').length;
+      const inSchoolCount = adminMajorClasses.filter(c => c.status === '正常在校').length;
+      const internshipCount = adminMajorClasses.filter(c => c.status === '外出实习').length;
+      const returnedCount = adminMajorClasses.filter(c => c.status === '实习返校').length;
+      const graduatedCount = adminMajorClasses.filter(c => c.status === '已毕业').length;
 
       return {
         id: major.id,
         name: major.name,
         deptName: dept?.name || '未知专业部',
-        classCount: majorClasses.length,
+        classCount: adminMajorClasses.length,
         inSchoolCount,
         internshipCount,
         returnedCount,
@@ -219,7 +226,7 @@ export function TeacherWorkload() {
         studentCount,
         totalHours,
         enrollmentTarget: major.enrollmentTarget || 0,
-        avgClassSize: majorClasses.length > 0 ? Math.round(studentCount / majorClasses.length) : 0
+        avgClassSize: adminMajorClasses.length > 0 ? Math.round(studentCount / adminMajorClasses.length) : 0
       };
     }).sort((a, b) => b.studentCount - a.studentCount);
   }, [state.majors, state.classes, state.departments, state.schedules]);
