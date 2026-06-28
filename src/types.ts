@@ -68,7 +68,6 @@ export interface Class {
   studentCount: number;
   headTeacherId: string;
   status?: '正常在校' | '外出实习' | '实习返校' | '已毕业' | '合并解散';
-  stage?: '高一' | '高二' | '高三' | '已毕业';
   isPreset?: boolean; // Flag to indicate if the class is a preset draft
 }
 

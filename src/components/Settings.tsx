@@ -412,8 +412,7 @@ export function Settings() {
       classroom: '',
       studentCount: 0,
       headTeacherId: '',
-      status: '正常在校',
-      stage: '高一'
+      status: '正常在校'
     });
   };
 
@@ -1089,15 +1088,6 @@ export function Settings() {
                               </select>
                             </div>
                             <div>
-                              <label className="block text-xs text-slate-500 mb-1">阶段 (升级可变)</label>
-                              <select value={classForm.stage || '高一'} onChange={e => setClassForm({...classForm, stage: e.target.value as any})} className="w-full px-2 py-1 border rounded">
-                                <option value="高一">高一</option>
-                                <option value="高二">高二</option>
-                                <option value="高三">高三</option>
-                                <option value="已毕业">已毕业</option>
-                              </select>
-                            </div>
-                            <div>
                               <label className="block text-xs text-slate-500 mb-1">在校状态</label>
                               <select value={classForm.status || '正常在校'} onChange={e => setClassForm({...classForm, status: e.target.value as any})} className="w-full px-2 py-1 border rounded">
                                 <option value="正常在校">正常在校</option>
@@ -1138,9 +1128,6 @@ export function Settings() {
                                 <input type="checkbox" checked={selectedClasses.has(cls.id)} onChange={() => toggleClassSelection(cls.id)} className="cursor-pointer" />
                               )}
                               <h4 className="font-bold text-slate-800">{cls.name}</h4>
-                              <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-medium border border-slate-200">
-                                {cls.stage || '高一'}
-                              </span>
                               <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
                                 (cls.status || '正常在校') === '正常在校' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                                 (cls.status || '正常在校') === '外出实习' ? 'bg-orange-50 text-orange-700 border-orange-100' :
