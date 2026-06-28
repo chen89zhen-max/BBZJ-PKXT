@@ -36,6 +36,7 @@ interface AppContextType {
   addTeacher: (teacher: Omit<Teacher, 'id'>) => void;
   addTeachers: (teachers: Omit<Teacher, 'id'>[]) => void;
   updateTeacher: (teacher: Teacher) => void;
+  updateTeachers: (teachers: Teacher[]) => void;
   deleteTeacher: (id: string) => void;
   deleteTeachers: (ids: string[]) => void;
   
@@ -43,6 +44,7 @@ interface AppContextType {
   addSubject: (name: string, type: SubjectType, departmentId?: string, majorId?: string) => void;
   addSubjects: (subjects: Omit<Subject, 'id'>[]) => void;
   updateSubject: (subject: Subject) => void;
+  updateSubjects: (subjects: Subject[]) => void;
   deleteSubject: (id: string) => void;
   deleteSubjects: (ids: string[]) => void;
   reorderSubject: (id: string, direction: 'up' | 'down') => void;
@@ -66,7 +68,7 @@ interface AppContextType {
   updateMajorEnrollmentTarget: (majorId: string, target: number) => void;
   presetClassesForMajor: (majorId: string, gradeId: string, classes: { name: string; studentCount: number; type: string }[]) => void;
   transitionAcademicYear: (newGradeName: string) => void;
-  updateClassStatusAndStage: (classId: string, status: '正常在校' | '外出实习' | '实习返校' | '已毕业', stage: '高一' | '高二' | '高三' | '已毕业') => void;
+  updateClassStatusAndStage: (classId: string, status: '正常在校' | '外出实习' | '实习返校' | '已毕业' | '合并解散', stage: '高一' | '高二' | '高三' | '已毕业') => void;
   
   connected: boolean;
 }
@@ -123,12 +125,12 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     let newSchedules = [...state.schedules];
     
     if (existingIndex >= 0) {
-      if (!teacherId || hours <= 0) {
+      if (hours <= 0) {
         newSchedules.splice(existingIndex, 1);
       } else {
         newSchedules[existingIndex] = { ...newSchedules[existingIndex], teacherId, hours };
       }
-    } else if (teacherId && hours > 0) {
+    } else if (hours > 0) {
       newSchedules.push({ id: uuidv4(), classId, subjectId, teacherId, hours });
     }
 
@@ -143,12 +145,12 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
       const existingIndex = newSchedules.findIndex(s => s.classId === classId && s.subjectId === subjectId);
       
       if (existingIndex >= 0) {
-        if (!teacherId || hours <= 0) {
+        if (hours <= 0) {
           newSchedules.splice(existingIndex, 1);
         } else {
           newSchedules[existingIndex] = { ...newSchedules[existingIndex], teacherId, hours };
         }
-      } else if (teacherId && hours > 0) {
+      } else if (hours > 0) {
         newSchedules.push({ id: uuidv4(), classId, subjectId, teacherId, hours });
       }
     });
@@ -253,7 +255,7 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
   };
   const updateClass = (cls: Class) => {
     let updatedSchedules = state.schedules;
-    if (cls.status === '外出实习' || cls.status === '已毕业') {
+    if (cls.status === '外出实习' || cls.status === '已毕业' || cls.status === '合并解散') {
       updatedSchedules = state.schedules.filter(s => s.classId !== cls.id);
     }
     broadcastState({ 
@@ -410,6 +412,11 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
   const updateTeacher = (teacher: Teacher) => {
     broadcastState({ ...state, teachers: state.teachers.map(t => t.id === teacher.id ? teacher : t) });
   };
+  const updateTeachers = (teachersToUpdate: Teacher[]) => {
+    const updatedMap = new Map(teachersToUpdate.map(t => [t.id, t]));
+    const newTeachers = state.teachers.map(t => updatedMap.has(t.id) ? updatedMap.get(t.id)! : t);
+    broadcastState({ ...state, teachers: newTeachers });
+  };
   const deleteTeacher = (id: string) => {
     const remainingTeachers = state.teachers.filter(t => t.id !== id);
     const remainingTeacherIds = new Set(remainingTeachers.map(t => t.id));
@@ -478,6 +485,11 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
   };
   const updateSubject = (subject: Subject) => {
     broadcastState({ ...state, subjects: state.subjects.map(s => s.id === subject.id ? subject : s) });
+  };
+  const updateSubjects = (subjectsToUpdate: Subject[]) => {
+    const updatedMap = new Map(subjectsToUpdate.map(s => [s.id, s]));
+    const newSubjects = state.subjects.map(s => updatedMap.has(s.id) ? updatedMap.get(s.id)! : s);
+    broadcastState({ ...state, subjects: newSubjects });
   };
   const deleteSubject = (id: string) => {
     const remainingSubjects = state.subjects.filter(s => s.id !== id);
@@ -636,9 +648,9 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     });
   };
 
-  const updateClassStatusAndStage = (classId: string, status: '正常在校' | '外出实习' | '实习返校' | '已毕业', stage: '高一' | '高二' | '高三' | '已毕业') => {
+  const updateClassStatusAndStage = (classId: string, status: '正常在校' | '外出实习' | '实习返校' | '已毕业' | '合并解散', stage: '高一' | '高二' | '高三' | '已毕业') => {
     let updatedSchedules = state.schedules;
-    if (status === '外出实习' || status === '已毕业') {
+    if (status === '外出实习' || status === '已毕业' || status === '合并解散') {
       updatedSchedules = state.schedules.filter(s => s.classId !== classId);
     }
     
@@ -742,11 +754,13 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
         addTeacher,
         addTeachers,
         updateTeacher,
+        updateTeachers,
         deleteTeacher,
         deleteTeachers,
         addSubject,
         addSubjects,
         updateSubject,
+        updateSubjects,
         deleteSubject,
         deleteSubjects,
         reorderSubject,

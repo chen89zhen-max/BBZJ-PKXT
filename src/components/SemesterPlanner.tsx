@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context';
 import { 
   Building2, Users, GraduationCap, TrendingUp, Calculator, 
@@ -38,10 +38,32 @@ export function SemesterPlanner() {
 
   const [activeSubTab, setActiveSubTab] = useState<'status' | 'enrollment' | 'forecast' | 'switch'>('status');
 
-  // Input states for forecast parameters
-  const [onCampusHours, setOnCampusHours] = useState<number>(28);
-  const [internshipHours, setInternshipHours] = useState<number>(2);
-  const [teacherStandardHours, setTeacherStandardHours] = useState<number>(14);
+  // Input states for forecast parameters (persisted in localStorage)
+  const [onCampusHours, setOnCampusHours] = useState<number>(() => {
+    const saved = localStorage.getItem('semester_planner_on_campus_hours');
+    return saved ? parseInt(saved, 10) || 28 : 28;
+  });
+  const [internshipHours, setInternshipHours] = useState<number>(() => {
+    const saved = localStorage.getItem('semester_planner_internship_hours');
+    return saved ? parseInt(saved, 10) || 2 : 2;
+  });
+  const [teacherStandardHours, setTeacherStandardHours] = useState<number>(() => {
+    const saved = localStorage.getItem('semester_planner_teacher_standard_hours');
+    return saved ? parseInt(saved, 10) || 14 : 14;
+  });
+
+  // Persist forecast parameters to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('semester_planner_on_campus_hours', onCampusHours.toString());
+  }, [onCampusHours]);
+
+  useEffect(() => {
+    localStorage.setItem('semester_planner_internship_hours', internshipHours.toString());
+  }, [internshipHours]);
+
+  useEffect(() => {
+    localStorage.setItem('semester_planner_teacher_standard_hours', teacherStandardHours.toString());
+  }, [teacherStandardHours]);
 
   // States for preset generator
   const [targetCohort, setTargetCohort] = useState<string>('');
@@ -335,7 +357,7 @@ export function SemesterPlanner() {
   // Dynamic class hours calculation
   const getClassWeeklyHours = (cls: any) => {
     const status = cls.status || '正常在校';
-    if (status === '已毕业' || cls.isPreset) return 0;
+    if (status === '已毕业' || status === '合并解散' || cls.isPreset) return 0;
     if (status === '外出实习') return internshipHours;
     
     // Find category to see if weeklyHours is customized
@@ -361,7 +383,7 @@ export function SemesterPlanner() {
 
       deptClasses.forEach(c => {
         const status = getClassStatus(c);
-        if (status === '已毕业') {
+        if (status === '已毕业' || status === '合并解散') {
           graduatedCount++;
         } else {
           totalWeeklyHours += getClassWeeklyHours(c);
@@ -404,7 +426,7 @@ export function SemesterPlanner() {
 
       majorClasses.forEach(c => {
         const status = getClassStatus(c);
-        if (status === '已毕业') {
+        if (status === '已毕业' || status === '合并解散') {
           graduatedCount++;
         } else {
           totalWeeklyHours += getClassWeeklyHours(c);
@@ -450,7 +472,7 @@ export function SemesterPlanner() {
 
       const totalWeeklyHours = state.schedules.filter(sch => {
         const c = state.classes.find(cls => cls.id === sch.classId);
-        return subIds.has(sch.subjectId) && c && !c.isPreset && c.status !== '已毕业';
+        return subIds.has(sch.subjectId) && c && !c.isPreset && c.status !== '已毕业' && c.status !== '合并解散';
       }).reduce((sum, sch) => sum + sch.hours, 0);
 
       const subTeachers = teachers.filter(t => t.primarySubject === subName);
@@ -642,7 +664,7 @@ export function SemesterPlanner() {
               <div>
                 <span className="font-bold">班级状态与排课关联说明：</span>
                 在下方表格中更改班级的状态后，将直接联动影响“师资需求测算”。
-                处于“正常在校”或“实习返校”状态的班级会按标准安排全量周课时；处于“外出实习”状态的班级将仅保留极少量/零实习指导课时；“已毕业”班级将不产生任何课时需求。
+                处于“正常在校”或“实习返校”状态的班级会按标准安排全量周课时；处于“外出实习”状态的班级将仅保留极少量/零实习指导课时；“已毕业”或“合并解散”班级将不产生任何课时需求。
               </div>
             </div>
 
@@ -794,6 +816,7 @@ export function SemesterPlanner() {
                           <option value="外出实习">外出实习</option>
                           <option value="实习返校">实习返校</option>
                           <option value="已毕业">已毕业</option>
+                          <option value="合并解散">合并解散</option>
                         </select>
                       </div>
                     </div>
@@ -892,6 +915,7 @@ export function SemesterPlanner() {
                                       <option value="外出实习">外出实习</option>
                                       <option value="实习返校">实习返校</option>
                                       <option value="已毕业">已毕业</option>
+                                      <option value="合并解散">合并解散</option>
                                     </select>
                                   </td>
                                   <td className="px-6 py-4 font-mono text-slate-600">{cls.studentCount}人</td>
@@ -1625,6 +1649,7 @@ export function SemesterPlanner() {
                     <option value="外出实习">外出实习</option>
                     <option value="实习返校">实习返校</option>
                     <option value="已毕业">已毕业</option>
+                    <option value="合并解散">合并解散</option>
                   </select>
                 </div>
               </div>

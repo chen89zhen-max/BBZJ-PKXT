@@ -122,14 +122,34 @@ export function Settings() {
     addDepartment, updateDepartment, deleteDepartment,
     addMajor, updateMajor, deleteMajor,
     addClass, updateClass, deleteClass, deleteClasses, clearClasses, importClasses, importMajors,
-    addTeacher, addTeachers, updateTeacher, deleteTeacher, deleteTeachers,
-    addSubject, addSubjects, updateSubject, deleteSubject, deleteSubjects, reorderSubject, updateSubjectsOrder,
+    addTeacher, addTeachers, updateTeacher, updateTeachers, deleteTeacher, deleteTeachers,
+    addSubject, addSubjects, updateSubject, updateSubjects, deleteSubject, deleteSubjects, reorderSubject, updateSubjectsOrder,
     addClassCategory, deleteClassCategory,
     addGrade, deleteGrade,
     clearSchedules
   } = useAppContext();
 
-  const [activeTab, setActiveTab] = useState<'org' | 'dict'>('org');
+  const [activeTab, setActiveTab] = useState<'org' | 'teacher' | 'subject' | 'dict'>('org');
+
+  // Teacher Filter state
+  const [teacherDeptFilter, setTeacherDeptFilter] = useState<string>('');
+  const [teacherSubjectFilter, setTeacherSubjectFilter] = useState<string>('');
+  const [teacherGenderFilter, setTeacherGenderFilter] = useState<string>('');
+
+  // Teacher Batch Update state
+  const [teacherBatchDept, setTeacherBatchDept] = useState<string>('');
+  const [teacherBatchSubject, setTeacherBatchSubject] = useState<string>('');
+  const [teacherBatchGender, setTeacherBatchGender] = useState<string>('');
+
+  // Subject Filter state
+  const [subjectTypeFilter, setSubjectTypeFilter] = useState<string>('');
+  const [subjectDeptFilter, setSubjectDeptFilter] = useState<string>('');
+  const [subjectMajorFilter, setSubjectMajorFilter] = useState<string>('');
+
+  // Subject Batch Update state
+  const [subjectBatchType, setSubjectBatchType] = useState<string>('');
+  const [subjectBatchDept, setSubjectBatchDept] = useState<string>('');
+  const [subjectBatchMajor, setSubjectBatchMajor] = useState<string>('');
 
   // Org State
   const [selectedDeptId, setSelectedDeptId] = useState<string>('');
@@ -153,6 +173,8 @@ export function Settings() {
 
   // Search State
   const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
+  const [teacherSortField, setTeacherSortField] = useState<'name' | 'department' | 'primarySubject' | 'gender'>('name');
+  const [teacherSortOrder, setTeacherSortOrder] = useState<'asc' | 'desc'>('asc');
   const [subjectSearchQuery, setSubjectSearchQuery] = useState('');
 
   // Edit State
@@ -685,24 +707,132 @@ export function Settings() {
     setShowImportBackupPrompt(false);
   };
 
+  const applyTeacherBatchDept = (deptName: string) => {
+    if (!deptName) return;
+    const teachersToUpdate = state.teachers
+      .filter(t => selectedTeachers.has(t.id))
+      .map(t => ({ ...t, department: deptName }));
+    updateTeachers(teachersToUpdate);
+    setSelectedTeachers(new Set());
+    setTeacherBatchDept('');
+  };
+
+  const applyTeacherBatchSubject = (subjectName: string) => {
+    if (!subjectName) return;
+    const teachersToUpdate = state.teachers
+      .filter(t => selectedTeachers.has(t.id))
+      .map(t => ({ ...t, primarySubject: subjectName }));
+    updateTeachers(teachersToUpdate);
+    setSelectedTeachers(new Set());
+    setTeacherBatchSubject('');
+  };
+
+  const applyTeacherBatchGender = (gender: '男' | '女') => {
+    const teachersToUpdate = state.teachers
+      .filter(t => selectedTeachers.has(t.id))
+      .map(t => ({ ...t, gender }));
+    updateTeachers(teachersToUpdate);
+    setSelectedTeachers(new Set());
+    setTeacherBatchGender('');
+  };
+
+  const applySubjectBatchType = (type: SubjectType) => {
+    const subjectsToUpdate = state.subjects
+      .filter(s => selectedSubjects.has(s.id))
+      .map(s => {
+        const isProfessional = type === '中职专业课';
+        return {
+          ...s,
+          type,
+          departmentId: isProfessional ? s.departmentId : undefined,
+          majorId: isProfessional ? s.majorId : undefined
+        };
+      });
+    updateSubjects(subjectsToUpdate);
+    setSelectedSubjects(new Set());
+    setSubjectBatchType('');
+  };
+
+  const applySubjectBatchDept = (deptId: string) => {
+    if (!deptId) return;
+    const subjectsToUpdate = state.subjects
+      .filter(s => selectedSubjects.has(s.id))
+      .map(s => ({ ...s, departmentId: deptId, majorId: undefined }));
+    updateSubjects(subjectsToUpdate);
+    setSelectedSubjects(new Set());
+    setSubjectBatchDept('');
+  };
+
+  const applySubjectBatchMajor = (majorId: string) => {
+    if (!majorId) return;
+    const subjectsToUpdate = state.subjects
+      .filter(s => selectedSubjects.has(s.id))
+      .map(s => {
+        const major = state.majors.find(m => m.id === majorId);
+        return {
+          ...s,
+          majorId,
+          departmentId: major ? major.departmentId : s.departmentId
+        };
+      });
+    updateSubjects(subjectsToUpdate);
+    setSelectedSubjects(new Set());
+    setSubjectBatchMajor('');
+  };
+
   const filteredTeachers = useMemo(() => {
-    if (!teacherSearchQuery.trim()) return state.teachers;
-    const query = teacherSearchQuery.toLowerCase();
-    return state.teachers.filter(t => 
-      t.name.toLowerCase().includes(query) || 
-      t.department?.toLowerCase().includes(query) ||
-      t.primarySubject?.toLowerCase().includes(query)
-    );
-  }, [state.teachers, teacherSearchQuery]);
+    let list = state.teachers;
+    if (teacherSearchQuery.trim()) {
+      const query = teacherSearchQuery.toLowerCase();
+      list = list.filter(t => 
+        t.name.toLowerCase().includes(query) || 
+        t.department?.toLowerCase().includes(query) ||
+        t.primarySubject?.toLowerCase().includes(query)
+      );
+    }
+    if (teacherDeptFilter) {
+      list = list.filter(t => t.department === teacherDeptFilter);
+    }
+    if (teacherSubjectFilter) {
+      list = list.filter(t => t.primarySubject === teacherSubjectFilter);
+    }
+    if (teacherGenderFilter) {
+      list = list.filter(t => t.gender === teacherGenderFilter);
+    }
+    
+    // Sort
+    list = [...list].sort((a, b) => {
+      let valA = a[teacherSortField] || '';
+      let valB = b[teacherSortField] || '';
+      
+      let comparison = valA.localeCompare(valB, 'zh-CN');
+      
+      return teacherSortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return list;
+  }, [state.teachers, teacherSearchQuery, teacherDeptFilter, teacherSubjectFilter, teacherGenderFilter, teacherSortField, teacherSortOrder]);
 
   const filteredSubjects = useMemo(() => {
-    if (!subjectSearchQuery.trim()) return state.subjects;
-    const query = subjectSearchQuery.toLowerCase();
-    return state.subjects.filter(s => 
-      s.name.toLowerCase().includes(query) || 
-      s.type.toLowerCase().includes(query)
-    );
-  }, [state.subjects, subjectSearchQuery]);
+    let list = state.subjects;
+    if (subjectSearchQuery.trim()) {
+      const query = subjectSearchQuery.toLowerCase();
+      list = list.filter(s => 
+        s.name.toLowerCase().includes(query) || 
+        s.type.toLowerCase().includes(query)
+      );
+    }
+    if (subjectTypeFilter) {
+      list = list.filter(s => s.type === subjectTypeFilter);
+    }
+    if (subjectDeptFilter) {
+      list = list.filter(s => s.departmentId === subjectDeptFilter);
+    }
+    if (subjectMajorFilter) {
+      list = list.filter(s => s.majorId === subjectMajorFilter);
+    }
+    return list;
+  }, [state.subjects, subjectSearchQuery, subjectTypeFilter, subjectDeptFilter, subjectMajorFilter]);
 
   return (
     <div className="space-y-6">
@@ -720,10 +850,22 @@ export function Settings() {
           组织架构与班级
         </button>
         <button 
+          onClick={() => setActiveTab('teacher')}
+          className={`pb-3 px-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'teacher' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          教师管理
+        </button>
+        <button 
+          onClick={() => setActiveTab('subject')}
+          className={`pb-3 px-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'subject' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          科目管理
+        </button>
+        <button 
           onClick={() => setActiveTab('dict')}
           className={`pb-3 px-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'dict' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
-          教师、科目与字典
+          年级与类别字典
         </button>
       </div>
 
@@ -962,6 +1104,7 @@ export function Settings() {
                                 <option value="外出实习">外出实习 (自动清空排课)</option>
                                 <option value="实习返校">实习返校</option>
                                 <option value="已毕业">已毕业 (自动清空排课)</option>
+                                <option value="合并解散">合并解散 (自动清空排课)</option>
                               </select>
                             </div>
                             <div>
@@ -1002,6 +1145,7 @@ export function Settings() {
                                 (cls.status || '正常在校') === '正常在校' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                                 (cls.status || '正常在校') === '外出实习' ? 'bg-orange-50 text-orange-700 border-orange-100' :
                                 (cls.status || '正常在校') === '实习返校' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                                (cls.status || '正常在校') === '合并解散' ? 'bg-slate-100 text-slate-500 border-slate-200' :
                                 'bg-rose-50 text-rose-700 border-rose-100'
                               }`}>
                                 {cls.status || '正常在校'}
@@ -1033,347 +1177,588 @@ export function Settings() {
         </div>
       )}
 
-      {activeTab === 'dict' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Teachers */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
-            <div className="p-4 border-b border-slate-100 bg-slate-50">
-              <div className="flex justify-between items-center">
-                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-                  <UserCircle className="w-4 h-4 text-emerald-600" /> 教师管理
-                </h3>
-                {(isAdmin || user?.role === 'USER') && (
-                  <div className="flex gap-2">
-                    <button onClick={downloadTeacherTemplate} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded text-xs flex items-center gap-1 border border-slate-300">
-                      <Download className="w-3 h-3" /> 下载模板
-                    </button>
-                    <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded text-xs flex items-center gap-1 border border-slate-300">
-                      <Upload className="w-3 h-3" /> 导入Excel
-                      <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleTeacherImport} />
-                    </label>
-                  </div>
-                )}
-              </div>
-              <div className="mt-3 relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="搜索教师姓名、部门或学科..."
-                  value={teacherSearchQuery}
-                  onChange={(e) => setTeacherSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-              {(isAdmin || user?.role === 'USER') && (
-                <form onSubmit={(e) => { 
-                  e.preventDefault(); 
-                  if(newTeacherName.trim()) { 
-                    addTeacher({
-                      name: newTeacherName.trim(),
-                      gender: newTeacherGender as any,
-                      idCard: newTeacherIdCard.trim(),
-                      department: user?.role === 'USER' ? (newTeacherDepartment || userDeptNames[0] || '') : newTeacherDepartment.trim(),
-                      primarySubject: newTeacherPrimarySubject.trim()
-                    }); 
-                    setNewTeacherName(''); 
-                    setNewTeacherGender('');
-                    setNewTeacherIdCard('');
-                    setNewTeacherDepartment('');
-                    setNewTeacherPrimarySubject('');
-                  } 
-                }} className="mt-3 flex flex-col gap-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <input type="text" value={newTeacherName} onChange={(e) => setNewTeacherName(e.target.value)} placeholder="姓名 (必填)" className="px-3 py-1.5 border border-slate-300 rounded-md text-sm" required />
-                    <select value={newTeacherGender} onChange={(e) => setNewTeacherGender(e.target.value as any)} className="px-3 py-1.5 border border-slate-300 rounded-md text-sm">
-                      <option value="">性别</option>
-                      <option value="男">男</option>
-                      <option value="女">女</option>
+      {activeTab === 'teacher' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left panel: Add/Edit Teacher */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
+            <div>
+              <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                <UserCircle className="w-5 h-5 text-indigo-600" />
+                {editingTeacherId ? '编辑教师' : '添加教师'}
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                {editingTeacherId ? '修改当前教师的基础属性和任教学科' : '向系统录入一位新的教师信息'}
+              </p>
+            </div>
+
+            {editingTeacherId ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">姓名 *</label>
+                  <input type="text" value={teacherForm.name || ''} onChange={e => setTeacherForm({...teacherForm, name: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" required />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">性别</label>
+                  <select value={teacherForm.gender || ''} onChange={e => setTeacherForm({...teacherForm, gender: e.target.value as any})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500">
+                    <option value="">未知</option>
+                    <option value="男">男</option>
+                    <option value="女">女</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">身份证号</label>
+                  <input type="text" value={teacherForm.idCard || ''} onChange={e => setTeacherForm({...teacherForm, idCard: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">所属产业部</label>
+                  {user?.role === 'USER' && user.departmentIds && user.departmentIds.length > 1 ? (
+                    <select value={teacherForm.department || userDeptNames[0]} onChange={e => setTeacherForm({...teacherForm, department: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm">
+                      {userDeptNames.map(name => <option key={name} value={name}>{name}</option>)}
                     </select>
-                    <input type="text" value={newTeacherIdCard} onChange={(e) => setNewTeacherIdCard(e.target.value)} placeholder="身份证号码" className="col-span-2 px-3 py-1.5 border border-slate-300 rounded-md text-sm" />
-                    {user?.role === 'USER' && user.departmentIds && user.departmentIds.length > 1 ? (
-                      <select 
-                        value={newTeacherDepartment || userDeptNames[0]} 
-                        onChange={(e) => setNewTeacherDepartment(e.target.value)}
-                        className="px-3 py-1.5 border border-slate-300 rounded-md text-sm"
-                      >
-                        {userDeptNames.map(name => <option key={name} value={name}>{name}</option>)}
-                      </select>
-                    ) : (
-                      <input 
-                        type="text" 
-                        value={user?.role === 'USER' ? (userDeptNames[0] || '') : newTeacherDepartment} 
-                        onChange={(e) => setNewTeacherDepartment(e.target.value)} 
-                        placeholder="所属产业部" 
-                        className="px-3 py-1.5 border border-slate-300 rounded-md text-sm disabled:bg-slate-50" 
-                        disabled={user?.role === 'USER'}
-                      />
-                    )}
-                    <input type="text" value={newTeacherPrimarySubject} onChange={(e) => setNewTeacherPrimarySubject(e.target.value)} placeholder="主要任教学科" className="px-3 py-1.5 border border-slate-300 rounded-md text-sm" />
-                  </div>
-                  <button type="submit" disabled={!newTeacherName.trim()} className="w-full bg-emerald-600 text-white px-3 py-1.5 rounded-md hover:bg-emerald-700 disabled:opacity-50 text-sm flex items-center justify-center gap-1"><Plus className="w-4 h-4" /> 添加教师</button>
-                </form>
-              )}
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              <div className="space-y-2">
-                {filteredTeachers.length > 0 && isAdmin && (
-                  <div className="flex justify-between items-center px-2 py-1 bg-slate-100 rounded text-sm mb-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={selectedTeachers.size === filteredTeachers.length && filteredTeachers.length > 0} onChange={(e) => {
-                        if (e.target.checked) setSelectedTeachers(new Set(filteredTeachers.map(t => t.id)));
-                        else setSelectedTeachers(new Set());
-                      }} />
-                      <span className="text-slate-600">全选</span>
-                    </label>
-                    {selectedTeachers.size > 0 && (
-                      <button onClick={handleBatchDeleteTeachers} className="text-rose-600 hover:text-rose-700 font-medium text-xs bg-rose-50 px-2 py-1 rounded border border-rose-200">批量删除 ({selectedTeachers.size})</button>
-                    )}
-                  </div>
-                )}
-                {filteredTeachers.map(t => {
-                  const canEdit = isAdmin || (user?.role === 'USER' && userDeptNames.includes(t.department || ''));
-                  return (
-                    <div key={t.id} className="flex flex-col bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm gap-2 group">
-                      {editingTeacherId === t.id ? (
-                        <div className="space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <input type="text" value={teacherForm.name || ''} onChange={e => setTeacherForm({...teacherForm, name: e.target.value})} className="px-2 py-1 border rounded" placeholder="姓名" />
-                            <select value={teacherForm.gender || ''} onChange={e => setTeacherForm({...teacherForm, gender: e.target.value as any})} className="px-2 py-1 border rounded">
-                              <option value="">性别</option>
-                              <option value="男">男</option>
-                              <option value="女">女</option>
-                            </select>
-                            <input type="text" value={teacherForm.idCard || ''} onChange={e => setTeacherForm({...teacherForm, idCard: e.target.value})} className="col-span-2 px-2 py-1 border rounded" placeholder="身份证" />
-                            <input type="text" value={teacherForm.department || ''} onChange={e => setTeacherForm({...teacherForm, department: e.target.value})} className="px-2 py-1 border rounded" placeholder="部门" />
-                            <input type="text" value={teacherForm.primarySubject || ''} onChange={e => setTeacherForm({...teacherForm, primarySubject: e.target.value})} className="px-2 py-1 border rounded" placeholder="学科" />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => setEditingTeacherId(null)} className="text-slate-500 hover:text-slate-700 text-xs">取消</button>
-                            <button onClick={saveTeacher} className="text-indigo-600 hover:text-indigo-700 font-medium text-xs">保存</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              {isAdmin && (
-                                <input type="checkbox" checked={selectedTeachers.has(t.id)} onChange={() => toggleTeacherSelection(t.id)} className="cursor-pointer" />
-                              )}
-                              <div className="flex flex-col">
-                                <span className="font-medium">{t.name} {t.gender && `(${t.gender})`}</span>
-                              </div>
-                            </div>
-                            {canEdit && (
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => startEditTeacher(t)} className="text-slate-400 hover:text-indigo-600 p-1"><Edit2 className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => deleteTeacher(t.id)} className="text-slate-400 hover:text-rose-600 p-1"><Trash2 className="w-4 h-4" /></button>
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1 ml-0">
-                            {t.idCard && <span>身份证: {t.idCard.length === 18 ? `${t.idCard.substring(0, 6)}****${t.idCard.substring(14)}` : t.idCard}</span>}
-                            {t.department && <span>产业部: {t.department}</span>}
-                            {t.primarySubject && <span>学科: {t.primarySubject}</span>}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
+                  ) : (
+                    <input type="text" value={user?.role === 'USER' ? (userDeptNames[0] || '') : (teacherForm.department || '')} onChange={e => setTeacherForm({...teacherForm, department: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm disabled:bg-slate-50" disabled={user?.role === 'USER'} />
+                  )}
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">主要任教学科</label>
+                  <input type="text" value={teacherForm.primarySubject || ''} onChange={e => setTeacherForm({...teacherForm, primarySubject: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => { setEditingTeacherId(null); setTeacherForm({}); }} className="flex-1 px-3 py-2 border border-slate-200 text-slate-600 rounded text-sm hover:bg-slate-50">取消</button>
+                  <button onClick={() => { if (teacherForm.name?.trim()) { updateTeacher(teacherForm as Teacher); setEditingTeacherId(null); setTeacherForm({}); } }} className="flex-1 px-3 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">保存修改</button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <form onSubmit={(e) => { 
+                e.preventDefault(); 
+                if(newTeacherName.trim()) { 
+                  addTeacher({
+                    name: newTeacherName.trim(),
+                    gender: newTeacherGender as any,
+                    idCard: newTeacherIdCard.trim(),
+                    department: user?.role === 'USER' ? (newTeacherDepartment || userDeptNames[0] || '') : newTeacherDepartment.trim(),
+                    primarySubject: newTeacherPrimarySubject.trim()
+                  }); 
+                  setNewTeacherName(''); 
+                  setNewTeacherGender('');
+                  setNewTeacherIdCard('');
+                  setNewTeacherDepartment('');
+                  setNewTeacherPrimarySubject('');
+                } 
+              }} className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">姓名 *</label>
+                  <input type="text" value={newTeacherName} onChange={(e) => setNewTeacherName(e.target.value)} placeholder="教师姓名" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" required />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">性别</label>
+                  <select value={newTeacherGender} onChange={(e) => setNewTeacherGender(e.target.value as any)} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm">
+                    <option value="">选择性别</option>
+                    <option value="男">男</option>
+                    <option value="女">女</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">身份证号</label>
+                  <input type="text" value={newTeacherIdCard} onChange={(e) => setNewTeacherIdCard(e.target.value)} placeholder="输入身份证号" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">所属产业部</label>
+                  {user?.role === 'USER' && user.departmentIds && user.departmentIds.length > 1 ? (
+                    <select value={newTeacherDepartment || userDeptNames[0]} onChange={(e) => setNewTeacherDepartment(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm">
+                      {userDeptNames.map(name => <option key={name} value={name}>{name}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" value={user?.role === 'USER' ? (userDeptNames[0] || '') : newTeacherDepartment} onChange={(e) => setNewTeacherDepartment(e.target.value)} placeholder="所属产业部" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm disabled:bg-slate-50" disabled={user?.role === 'USER'} />
+                  )}
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">主要任教学科</label>
+                  <input type="text" value={newTeacherPrimarySubject} onChange={(e) => setNewTeacherPrimarySubject(e.target.value)} placeholder="例如：语文、电子" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" />
+                </div>
+                <button type="submit" disabled={!newTeacherName.trim()} className="w-full bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-1 font-medium mt-2"><Plus className="w-4 h-4" /> 添加教师</button>
+              </form>
+            )}
+
+            {/* Batch Excel Actions */}
+            {(isAdmin || user?.role === 'USER') && (
+              <div className="border-t border-slate-100 pt-4 mt-2">
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Excel 批量操作</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={downloadTeacherTemplate} className="bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 rounded text-xs flex items-center justify-center gap-1 border border-slate-200">
+                    <Download className="w-3.5 h-3.5" /> 模板下载
+                  </button>
+                  <label className="cursor-pointer bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 rounded text-xs flex items-center justify-center gap-1 border border-slate-200">
+                    <Upload className="w-3.5 h-3.5" /> 导入数据
+                    <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleTeacherImport} />
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Subjects */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
-            <div className="p-4 border-b border-slate-100 bg-slate-50">
-              <div className="flex justify-between items-center">
-                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-indigo-600" /> 科目管理
-                </h3>
-                {(isAdmin || user?.role === 'USER') && (
-                  <div className="flex gap-2">
-                    <button onClick={downloadSubjectTemplate} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded text-xs flex items-center gap-1 border border-slate-300">
-                      <Download className="w-3 h-3" /> 下载模板
-                    </button>
-                    <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded text-xs flex items-center gap-1 border border-slate-300">
-                      <Upload className="w-3 h-3" /> 导入Excel
-                      <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleSubjectImport} />
-                    </label>
-                  </div>
+          {/* Right Panel: Teacher Table & Filters */}
+          <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[600px]">
+            {/* Header / Filter Toolbar */}
+            <div className="p-4 border-b border-slate-100 bg-slate-50 space-y-3">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <h3 className="font-bold text-slate-800">教师档案列表 ({filteredTeachers.length}人)</h3>
+                
+                {/* Search query */}
+                <div className="relative w-full md:w-64">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input type="text" placeholder="搜索姓名/学科/属性..." value={teacherSearchQuery} onChange={e => setTeacherSearchQuery(e.target.value)} className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500 bg-white shadow-sm" />
+                </div>
+              </div>
+
+              {/* Filters list */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-slate-400">快速过滤:</span>
+                <select value={teacherDeptFilter} onChange={e => setTeacherDeptFilter(e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white">
+                  <option value="">全部产业部</option>
+                  {Array.from(new Set(state.teachers.map(t => t.department).filter(Boolean))).map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                  {state.departments.map(d => (
+                    <option key={d.id} value={d.name}>{d.name}</option>
+                  ))}
+                </select>
+
+                <select value={teacherSubjectFilter} onChange={e => setTeacherSubjectFilter(e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white">
+                  <option value="">全部任教学科</option>
+                  {Array.from(new Set(state.teachers.map(t => t.primarySubject).filter(Boolean))).map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+
+                <select value={teacherGenderFilter} onChange={e => setTeacherGenderFilter(e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white">
+                  <option value="">全部性别</option>
+                  <option value="男">男</option>
+                  <option value="女">女</option>
+                </select>
+
+                {(teacherDeptFilter || teacherSubjectFilter || teacherGenderFilter || teacherSearchQuery) && (
+                  <button onClick={() => { setTeacherDeptFilter(''); setTeacherSubjectFilter(''); setTeacherGenderFilter(''); setTeacherSearchQuery(''); }} className="text-indigo-600 hover:text-indigo-800 font-medium ml-1">清除过滤</button>
                 )}
               </div>
-              <div className="mt-3 relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="搜索科目名称或类型..."
-                  value={subjectSearchQuery}
-                  onChange={(e) => setSubjectSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-              {(isAdmin || user?.role === 'USER') && (
-                <form onSubmit={(e) => { 
-                  e.preventDefault(); 
-                  if(newSubjectName.trim()) { 
-                    const isProfessional = newSubjectType === '中职专业课';
-                    const deptId = user?.role === 'USER' ? (newSubjectDepartmentId || user.departmentIds?.[0] || '') : newSubjectDepartmentId;
-                    addSubject(
-                      newSubjectName.trim(), 
-                      newSubjectType, 
-                      isProfessional ? deptId : undefined, 
-                      isProfessional ? newSubjectMajorId : undefined
-                    ); 
-                    setNewSubjectName(''); 
-                  } 
-                }} className="mt-3 flex flex-col gap-2">
-                  <div className="flex gap-2">
-                    <input type="text" value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)} placeholder="新科目名称..." className="flex-1 px-3 py-1.5 border border-slate-300 rounded-md text-sm" />
-                    <select value={newSubjectType} onChange={(e) => setNewSubjectType(e.target.value as SubjectType)} className="px-2 border border-slate-300 rounded-md text-sm">
-                      <option value="中职公共基础课">中职公共基础课</option>
-                      <option value="中职专业课">中职专业课</option>
-                      <option value="综合高中文化课">综合高中文化课</option>
-                      <option value="综合高中技能课">综合高中技能课</option>
-                    </select>
-                  </div>
-                  {newSubjectType === '中职专业课' && (
-                    <div className="flex gap-2">
-                      <select 
-                        value={user?.role === 'USER' ? (newSubjectDepartmentId || user.departmentIds?.[0] || '') : newSubjectDepartmentId} 
-                        onChange={(e) => { setNewSubjectDepartmentId(e.target.value); setNewSubjectMajorId(''); }} 
-                        className="flex-1 px-2 py-1.5 border border-slate-300 rounded-md text-sm disabled:bg-slate-50"
-                        disabled={user?.role === 'USER' && (!user.departmentIds || user.departmentIds.length <= 1)}
-                      >
-                        <option value="">选择产业部...</option>
-                        {state.departments
-                          .filter(d => user?.role !== 'USER' || user.departmentIds?.includes(d.id))
-                          .map(d => (
-                            <option key={d.id} value={d.id}>{d.name}</option>
-                          ))}
+
+              {/* Bulk operations bar */}
+              {selectedTeachers.size > 0 && (
+                <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs text-indigo-900">
+                  <div className="font-semibold">已选中 {selectedTeachers.size} 位教师</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Batch Change Dept */}
+                    <div className="flex items-center gap-1">
+                      <select value={teacherBatchDept} onChange={e => setTeacherBatchDept(e.target.value)} className="border border-indigo-200 rounded px-1.5 py-1 bg-white">
+                        <option value="">统一部门</option>
+                        {state.departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
                       </select>
-                      <select 
-                        value={newSubjectMajorId} 
-                        onChange={(e) => setNewSubjectMajorId(e.target.value)} 
-                        className="flex-1 px-2 py-1.5 border border-slate-300 rounded-md text-sm disabled:bg-slate-50" 
-                        disabled={user?.role === 'USER' ? (!user.departmentIds || user.departmentIds.length === 0) : !newSubjectDepartmentId}
-                      >
-                        <option value="">选择专业(可选)...</option>
-                        {state.majors.filter(m => {
-                          const currentDeptId = user?.role === 'USER' ? (newSubjectDepartmentId || user.departmentIds?.[0]) : newSubjectDepartmentId;
-                          return m.departmentId === currentDeptId;
-                        }).map(m => (
-                          <option key={m.id} value={m.id}>{m.name}</option>
-                        ))}
-                      </select>
+                      <button onClick={() => applyTeacherBatchDept(teacherBatchDept)} className="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700">应用</button>
                     </div>
-                  )}
-                  <button type="submit" disabled={!newSubjectName.trim() || (newSubjectType === '中职专业课' && (user?.role === 'USER' ? (!user.departmentIds || user.departmentIds.length === 0) : !newSubjectDepartmentId))} className="w-full bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700 disabled:opacity-50 text-sm flex items-center justify-center gap-1"><Plus className="w-4 h-4" /> 添加科目</button>
-                </form>
+
+                    {/* Batch Change Subject */}
+                    <div className="flex items-center gap-1">
+                      <input type="text" placeholder="统一学科" value={teacherBatchSubject} onChange={e => setTeacherBatchSubject(e.target.value)} className="border border-indigo-200 rounded px-1.5 py-1 bg-white w-24" />
+                      <button onClick={() => applyTeacherBatchSubject(teacherBatchSubject)} className="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700">应用</button>
+                    </div>
+
+                    {/* Batch Change Gender */}
+                    <div className="flex items-center gap-1">
+                      <select value={teacherBatchGender} onChange={e => setTeacherBatchGender(e.target.value)} className="border border-indigo-200 rounded px-1.5 py-1 bg-white">
+                        <option value="">统一性别</option>
+                        <option value="男">男</option>
+                        <option value="女">女</option>
+                      </select>
+                      <button onClick={() => { if (teacherBatchGender) applyTeacherBatchGender(teacherBatchGender as any); }} className="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700">应用</button>
+                    </div>
+
+                    <button onClick={handleBatchDeleteTeachers} className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-1 rounded hover:bg-rose-100 flex items-center gap-1 font-semibold ml-2">
+                      <Trash2 className="w-3.5 h-3.5" /> 批量删除
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
-            <div className="flex-1 overflow-auto p-4">
-              <div className="space-y-2">
-                {filteredSubjects.length > 0 && isAdmin && (
-                  <div className="flex justify-between items-center px-2 py-1 bg-slate-100 rounded text-sm mb-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={selectedSubjects.size === filteredSubjects.length && filteredSubjects.length > 0} onChange={(e) => {
-                        if (e.target.checked) setSelectedSubjects(new Set(filteredSubjects.map(s => s.id)));
-                        else setSelectedSubjects(new Set());
-                      }} />
-                      <span className="text-slate-600">全选</span>
-                    </label>
-                    {selectedSubjects.size > 0 && (
-                      <button onClick={handleBatchDeleteSubjects} className="text-rose-600 hover:text-rose-700 font-medium text-xs bg-rose-50 px-2 py-1 rounded border border-rose-200">批量删除 ({selectedSubjects.size})</button>
-                    )}
+
+            {/* Table layout */}
+            <div className="flex-1 overflow-auto max-h-[500px]">
+              <table className="w-full text-sm text-left text-slate-600 border-collapse">
+                <thead className="text-xs text-slate-700 bg-slate-50 sticky top-0 border-b border-slate-100">
+                  <tr>
+                    <th className="p-3 w-10">
+                      <input type="checkbox" checked={filteredTeachers.length > 0 && selectedTeachers.size === filteredTeachers.length} onChange={e => {
+                        if (e.target.checked) setSelectedTeachers(new Set(filteredTeachers.map(t => t.id)));
+                        else setSelectedTeachers(new Set());
+                      }} className="cursor-pointer" />
+                    </th>
+                    <th className="p-3 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => {
+                      if (teacherSortField === 'name') setTeacherSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+                      else { setTeacherSortField('name'); setTeacherSortOrder('asc'); }
+                    }}>
+                      <div className="flex items-center gap-1">姓名 {teacherSortField === 'name' && <span className="text-indigo-600">{teacherSortOrder === 'asc' ? '↑' : '↓'}</span>}</div>
+                    </th>
+                    <th className="p-3 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => {
+                      if (teacherSortField === 'gender') setTeacherSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+                      else { setTeacherSortField('gender'); setTeacherSortOrder('asc'); }
+                    }}>
+                      <div className="flex items-center gap-1">性别 {teacherSortField === 'gender' && <span className="text-indigo-600">{teacherSortOrder === 'asc' ? '↑' : '↓'}</span>}</div>
+                    </th>
+                    <th className="p-3">身份证号</th>
+                    <th className="p-3 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => {
+                      if (teacherSortField === 'department') setTeacherSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+                      else { setTeacherSortField('department'); setTeacherSortOrder('asc'); }
+                    }}>
+                      <div className="flex items-center gap-1">所属产业部 {teacherSortField === 'department' && <span className="text-indigo-600">{teacherSortOrder === 'asc' ? '↑' : '↓'}</span>}</div>
+                    </th>
+                    <th className="p-3 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => {
+                      if (teacherSortField === 'primarySubject') setTeacherSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+                      else { setTeacherSortField('primarySubject'); setTeacherSortOrder('asc'); }
+                    }}>
+                      <div className="flex items-center gap-1">任教学科 {teacherSortField === 'primarySubject' && <span className="text-indigo-600">{teacherSortOrder === 'asc' ? '↑' : '↓'}</span>}</div>
+                    </th>
+                    <th className="p-3 text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredTeachers.map(t => {
+                    const isSelected = selectedTeachers.has(t.id);
+                    const canEdit = isAdmin || (user?.role === 'USER' && userDeptNames.includes(t.department || ''));
+                    return (
+                      <tr key={t.id} className={`hover:bg-slate-50 transition-colors ${isSelected ? 'bg-indigo-50/40' : ''}`}>
+                        <td className="p-3">
+                          <input type="checkbox" checked={isSelected} onChange={() => {
+                            const next = new Set(selectedTeachers);
+                            if (next.has(t.id)) next.delete(t.id);
+                            else next.add(t.id);
+                            setSelectedTeachers(next);
+                          }} className="cursor-pointer" />
+                        </td>
+                        <td className="p-3 font-semibold text-slate-900">{t.name}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded-full text-xs ${t.gender === '男' ? 'bg-blue-50 text-blue-700 border border-blue-100' : t.gender === '女' ? 'bg-rose-50 text-rose-700 border border-rose-100' : 'bg-slate-100 text-slate-600'}`}>{t.gender || '未知'}</span>
+                        </td>
+                        <td className="p-3 font-mono text-slate-500 text-xs">{t.idCard || '-'}</td>
+                        <td className="p-3">{t.department || '-'}</td>
+                        <td className="p-3">
+                          <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200 text-xs">{t.primarySubject || '-'}</span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex justify-end gap-2">
+                            {canEdit && (
+                              <button onClick={() => { setEditingTeacherId(t.id); setTeacherForm(t); }} className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded" title="编辑"><Edit2 className="w-4 h-4" /></button>
+                            )}
+                            {isAdmin && (
+                              <button onClick={() => deleteTeacher(t.id)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-slate-100 rounded" title="删除"><Trash2 className="w-4 h-4" /></button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredTeachers.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-slate-400">暂无符合条件的教师数据</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'subject' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left panel: Add/Edit Subject */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
+            <div>
+              <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-indigo-600" />
+                {editingSubjectId ? '编辑科目' : '添加科目'}
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                {editingSubjectId ? '修改当前学科/科目的属性关联' : '向系统录入一门新的课程科目'}
+              </p>
+            </div>
+
+            {editingSubjectId ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">科目名称 *</label>
+                  <input type="text" value={subjectForm.name || ''} onChange={e => setSubjectForm({...subjectForm, name: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" required />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">科目类别</label>
+                  <select value={subjectForm.type || '中职公共基础课'} onChange={e => setSubjectForm({...subjectForm, type: e.target.value as SubjectType, departmentId: '', majorId: ''})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500">
+                    <option value="中职公共基础课">中职公共基础课</option>
+                    <option value="中职专业课">中职专业课</option>
+                    <option value="综合高中文化课">综合高中文化课</option>
+                    <option value="综合高中技能课">综合高中技能课</option>
+                  </select>
+                </div>
+                {subjectForm.type === '中职专业课' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 block mb-1">关联产业部</label>
+                      <select value={subjectForm.departmentId || ''} onChange={e => setSubjectForm({...subjectForm, departmentId: e.target.value, majorId: ''})} className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs">
+                        <option value="">选择产业部</option>
+                        {state.departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 block mb-1">关联专业</label>
+                      <select value={subjectForm.majorId || ''} onChange={e => setSubjectForm({...subjectForm, majorId: e.target.value})} className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs">
+                        <option value="">选择专业</option>
+                        {state.majors.filter(m => m.departmentId === subjectForm.departmentId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </select>
+                    </div>
                   </div>
                 )}
-
-                {editingSubjectId ? (
-                  <div className="bg-white p-3 rounded-lg border border-indigo-200 shadow-sm space-y-3 mb-4">
-                    <div className="flex justify-between items-center mb-1">
-                      <h4 className="text-xs font-bold text-indigo-600 uppercase">编辑科目</h4>
-                      <button onClick={() => setEditingSubjectId(null)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => { setEditingSubjectId(null); setSubjectForm({}); }} className="flex-1 px-3 py-2 border border-slate-200 text-slate-600 rounded text-sm hover:bg-slate-50">取消</button>
+                  <button onClick={() => { if (subjectForm.name?.trim()) { updateSubject(subjectForm as Subject); setEditingSubjectId(null); setSubjectForm({}); } }} className="flex-1 px-3 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">保存修改</button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={(e) => { 
+                e.preventDefault(); 
+                if(newSubjectName.trim()) { 
+                  addSubject(
+                    newSubjectName.trim(),
+                    newSubjectType,
+                    newSubjectType === '中职专业课' ? newSubjectDepartmentId : undefined,
+                    newSubjectType === '中职专业课' ? newSubjectMajorId : undefined
+                  ); 
+                  setNewSubjectName(''); 
+                  setNewSubjectDepartmentId('');
+                  setNewSubjectMajorId('');
+                } 
+              }} className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">科目名称 *</label>
+                  <input type="text" value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)} placeholder="例如：电子技术基础" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" required />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">科目类别</label>
+                  <select value={newSubjectType} onChange={(e) => setNewSubjectType(e.target.value as SubjectType)} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm">
+                    <option value="中职公共基础课">中职公共基础课</option>
+                    <option value="中职专业课">中职专业课</option>
+                    <option value="综合高中文化课">综合高中文化课</option>
+                    <option value="综合高中技能课">综合高中技能课</option>
+                  </select>
+                </div>
+                {newSubjectType === '中职专业课' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 block mb-1">关联产业部</label>
+                      <select value={newSubjectDepartmentId} onChange={e => { setNewSubjectDepartmentId(e.target.value); setNewSubjectMajorId(''); }} className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs" required>
+                        <option value="">选择产业部</option>
+                        {state.departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
                     </div>
-                    <div className="space-y-2">
-                      <input 
-                        type="text" 
-                        value={subjectForm.name || ''} 
-                        onChange={e => setSubjectForm({...subjectForm, name: e.target.value})} 
-                        className="w-full px-2 py-1.5 border rounded text-sm" 
-                        placeholder="科目名称" 
-                      />
-                      <select 
-                        value={subjectForm.type || ''} 
-                        onChange={e => setSubjectForm({...subjectForm, type: e.target.value as any})} 
-                        className="w-full px-2 py-1.5 border rounded text-sm"
-                      >
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 block mb-1">关联专业</label>
+                      <select value={newSubjectMajorId} onChange={e => setNewSubjectMajorId(e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs" required>
+                        <option value="">选择专业</option>
+                        {state.majors.filter(m => m.departmentId === newSubjectDepartmentId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )}
+                <button type="submit" disabled={!newSubjectName.trim()} className="w-full bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-1 font-medium mt-2"><Plus className="w-4 h-4" /> 添加科目</button>
+              </form>
+            )}
+
+            {/* Batch Excel Actions */}
+            {(isAdmin || user?.role === 'USER') && (
+              <div className="border-t border-slate-100 pt-4 mt-2">
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Excel 批量操作</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={downloadSubjectTemplate} className="bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 rounded text-xs flex items-center justify-center gap-1 border border-slate-200">
+                    <Download className="w-3.5 h-3.5" /> 模板下载
+                  </button>
+                  <label className="cursor-pointer bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 rounded text-xs flex items-center justify-center gap-1 border border-slate-200">
+                    <Upload className="w-3.5 h-3.5" /> 导入数据
+                    <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleSubjectImport} />
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Panel: Subject Table & Filters */}
+          <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[600px]">
+            {/* Header / Filters Toolbar */}
+            <div className="p-4 border-b border-slate-100 bg-slate-50 space-y-3">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <h3 className="font-bold text-slate-800">教学科目列表 ({filteredSubjects.length}门)</h3>
+                
+                {/* Search query */}
+                <div className="relative w-full md:w-64">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input type="text" placeholder="搜索科目名称..." value={subjectSearchQuery} onChange={e => setSubjectSearchQuery(e.target.value)} className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500 bg-white shadow-sm" />
+                </div>
+              </div>
+
+              {/* Filters list */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-slate-400">快速过滤:</span>
+                <select value={subjectTypeFilter} onChange={e => { setSubjectTypeFilter(e.target.value); setSubjectMajorFilter(''); }} className="border border-slate-300 rounded px-2 py-1 bg-white">
+                  <option value="">全部类型</option>
+                  <option value="中职公共基础课">中职公共基础课</option>
+                  <option value="中职专业课">中职专业课</option>
+                  <option value="综合高中文化课">综合高中文化课</option>
+                  <option value="综合高中技能课">综合高中技能课</option>
+                </select>
+
+                <select value={subjectDeptFilter} onChange={e => { setSubjectDeptFilter(e.target.value); setSubjectMajorFilter(''); }} className="border border-slate-300 rounded px-2 py-1 bg-white">
+                  <option value="">关联产业部</option>
+                  {state.departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+
+                <select value={subjectMajorFilter} onChange={e => setSubjectMajorFilter(e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white" disabled={!subjectDeptFilter && !state.majors.length}>
+                  <option value="">关联专业</option>
+                  {state.majors
+                    .filter(m => !subjectDeptFilter || m.departmentId === subjectDeptFilter)
+                    .map(m => <option key={m.id} value={m.id}>{m.name}</option>)
+                  }
+                </select>
+
+                {(subjectTypeFilter || subjectDeptFilter || subjectMajorFilter || subjectSearchQuery) && (
+                  <button onClick={() => { setSubjectTypeFilter(''); setSubjectDeptFilter(''); setSubjectMajorFilter(''); setSubjectSearchQuery(''); }} className="text-indigo-600 hover:text-indigo-800 font-medium ml-1">清除过滤</button>
+                )}
+              </div>
+
+              {/* Bulk actions bar */}
+              {selectedSubjects.size > 0 && (
+                <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs text-indigo-900">
+                  <div className="font-semibold">已选中 {selectedSubjects.size} 个科目</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Batch Change Type */}
+                    <div className="flex items-center gap-1">
+                      <select value={subjectBatchType} onChange={e => setSubjectBatchType(e.target.value)} className="border border-indigo-200 rounded px-1.5 py-1 bg-white">
+                        <option value="">统一类型</option>
                         <option value="中职公共基础课">中职公共基础课</option>
                         <option value="中职专业课">中职专业课</option>
                         <option value="综合高中文化课">综合高中文化课</option>
                         <option value="综合高中技能课">综合高中技能课</option>
                       </select>
-                      {subjectForm.type === '中职专业课' && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <select 
-                            value={subjectForm.departmentId || ''} 
-                            onChange={e => setSubjectForm({...subjectForm, departmentId: e.target.value, majorId: ''})} 
-                            className="px-2 py-1.5 border rounded text-xs"
-                          >
-                            <option value="">选择产业部</option>
-                            {state.departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                          </select>
-                          <select 
-                            value={subjectForm.majorId || ''} 
-                            onChange={e => setSubjectForm({...subjectForm, majorId: e.target.value})} 
-                            className="px-2 py-1.5 border rounded text-xs"
-                          >
-                            <option value="">选择专业</option>
-                            {state.majors.filter(m => m.departmentId === subjectForm.departmentId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                          </select>
-                        </div>
-                      )}
+                      <button onClick={() => { if (subjectBatchType) applySubjectBatchType(subjectBatchType as any); }} className="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700">应用</button>
                     </div>
-                    <div className="flex justify-end gap-2 pt-1">
-                      <button onClick={() => setEditingSubjectId(null)} className="px-3 py-1 text-slate-500 hover:bg-slate-100 rounded text-xs">取消</button>
-                      <button onClick={saveSubject} className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-xs">保存修改</button>
-                    </div>
-                  </div>
-                ) : null}
 
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={filteredSubjects.map(s => s.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div className="space-y-2">
-                      {filteredSubjects.map(s => (
-                        <SortableSubjectItem 
-                          key={s.id} 
-                          subject={s} 
-                          isAdmin={isAdmin} 
-                          user={user} 
-                          state={state} 
-                          canEdit={isAdmin || (user?.role === 'USER' && user.departmentIds?.includes(s.departmentId || ''))}
-                          selectedSubjects={selectedSubjects}
-                          toggleSubjectSelection={toggleSubjectSelection}
-                          startEditSubject={startEditSubject}
-                          deleteSubject={deleteSubject}
-                        />
-                      ))}
+                    {/* Batch Change Dept */}
+                    <div className="flex items-center gap-1">
+                      <select value={subjectBatchDept} onChange={e => setSubjectBatchDept(e.target.value)} className="border border-indigo-200 rounded px-1.5 py-1 bg-white">
+                        <option value="">统一产业部</option>
+                        {state.departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
+                      <button onClick={() => applySubjectBatchDept(subjectBatchDept)} className="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700">应用</button>
                     </div>
-                  </SortableContext>
-                </DndContext>
-              </div>
+
+                    {/* Batch Change Major */}
+                    <div className="flex items-center gap-1">
+                      <select value={subjectBatchMajor} onChange={e => setSubjectBatchMajor(e.target.value)} className="border border-indigo-200 rounded px-1.5 py-1 bg-white">
+                        <option value="">统一专业</option>
+                        {state.majors.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </select>
+                      <button onClick={() => applySubjectBatchMajor(subjectBatchMajor)} className="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700">应用</button>
+                    </div>
+
+                    <button onClick={handleBatchDeleteSubjects} className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-1 rounded hover:bg-rose-100 flex items-center gap-1 font-semibold ml-2">
+                      <Trash2 className="w-3.5 h-3.5" /> 批量删除
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Table layout */}
+            <div className="flex-1 overflow-auto max-h-[500px]">
+              <table className="w-full text-sm text-left text-slate-600 border-collapse">
+                <thead className="text-xs text-slate-700 bg-slate-50 sticky top-0 border-b border-slate-100">
+                  <tr>
+                    <th className="p-3 w-10">
+                      <input type="checkbox" checked={filteredSubjects.length > 0 && selectedSubjects.size === filteredSubjects.length} onChange={e => {
+                        if (e.target.checked) setSelectedSubjects(new Set(filteredSubjects.map(s => s.id)));
+                        else setSelectedSubjects(new Set());
+                      }} className="cursor-pointer" />
+                    </th>
+                    <th className="p-3">科目名称</th>
+                    <th className="p-3">类型</th>
+                    <th className="p-3">关联产业部</th>
+                    <th className="p-3">关联专业</th>
+                    <th className="p-3 text-center w-24">顺序</th>
+                    <th className="p-3 text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredSubjects.map((s, index) => {
+                    const isSelected = selectedSubjects.has(s.id);
+                    const canEdit = isAdmin || (user?.role === 'USER' && user.departmentIds?.includes(s.departmentId || ''));
+                    const deptName = state.departments.find(d => d.id === s.departmentId)?.name;
+                    const majorName = state.majors.find(m => m.id === s.majorId)?.name;
+                    return (
+                      <tr key={s.id} className={`hover:bg-slate-50 transition-colors ${isSelected ? 'bg-indigo-50/40' : ''}`}>
+                        <td className="p-3">
+                          <input type="checkbox" checked={isSelected} onChange={() => {
+                            const next = new Set(selectedSubjects);
+                            if (next.has(s.id)) next.delete(s.id);
+                            else next.add(s.id);
+                            setSelectedSubjects(next);
+                          }} className="cursor-pointer" />
+                        </td>
+                        <td className="p-3 font-semibold text-slate-900">{s.name}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded text-xs border ${
+                            s.type === '中职公共基础课' ? 'bg-teal-50 text-teal-700 border-teal-100' :
+                            s.type === '中职专业课' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                            s.type === '综合高中文化课' ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                            'bg-orange-50 text-orange-700 border-orange-100'
+                          }`}>
+                            {s.type}
+                          </span>
+                        </td>
+                        <td className="p-3">{deptName || '-'}</td>
+                        <td className="p-3">{majorName || '-'}</td>
+                        <td className="p-3 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button onClick={() => reorderSubject(s.id, 'up')} disabled={index === 0} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600 disabled:opacity-30">
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => reorderSubject(s.id, 'down')} disabled={index === filteredSubjects.length - 1} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600 disabled:opacity-30">
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex justify-end gap-2">
+                            {canEdit && (
+                              <button onClick={() => { setEditingSubjectId(s.id); setSubjectForm(s); }} className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded" title="编辑"><Edit2 className="w-4 h-4" /></button>
+                            )}
+                            {isAdmin && (
+                              <button onClick={() => deleteSubject(s.id)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-slate-100 rounded" title="删除"><Trash2 className="w-4 h-4" /></button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredSubjects.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-slate-400">暂无符合条件的科目数据</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
+        </div>
+      )}
 
+      {activeTab === 'dict' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Class Categories */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[500px]">
             <div className="p-4 border-b border-slate-100 bg-slate-50">
               <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                 <Tags className="w-4 h-4 text-amber-600" /> 班级类别字典
@@ -1398,7 +1783,7 @@ export function Settings() {
           </div>
 
           {/* Grades */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[500px]">
             <div className="p-4 border-b border-slate-100 bg-slate-50">
               <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                 <Tags className="w-4 h-4 text-purple-600" /> 年级字典

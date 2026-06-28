@@ -62,7 +62,7 @@ export function TeacherWorkload() {
 
   // Student enrollment metrics
   const studentMetrics = useMemo(() => {
-    const activeClasses = state.classes.filter(c => c.status !== '已毕业');
+    const activeClasses = state.classes.filter(c => c.status !== '已毕业' && c.status !== '合并解散');
     const totalInSchool = activeClasses
       .filter(c => c.status === '正常在校')
       .reduce((sum, c) => sum + (c.studentCount || 0), 0);
@@ -88,7 +88,7 @@ export function TeacherWorkload() {
   // Classes count metrics
   const classMetrics = useMemo(() => {
     const total = state.classes.length;
-    const active = state.classes.filter(c => c.status !== '已毕业').length;
+    const active = state.classes.filter(c => c.status !== '已毕业' && c.status !== '合并解散').length;
     const inSchool = state.classes.filter(c => c.status === '正常在校').length;
     const internship = state.classes.filter(c => c.status === '外出实习').length;
     const returned = state.classes.filter(c => c.status === '实习返校').length;
@@ -135,7 +135,7 @@ export function TeacherWorkload() {
     const types: Record<string, number> = {};
     let totalActive = 0;
     state.classes.forEach(c => {
-      if (c.status !== '已毕业') {
+      if (c.status !== '已毕业' && c.status !== '合并解散') {
         const type = c.type || '普通班';
         types[type] = (types[type] || 0) + 1;
         totalActive++;
@@ -939,6 +939,7 @@ export function TeacherWorkload() {
                   <option value="外出实习">外出实习 (不排课/课时清零)</option>
                   <option value="实习返校">实习返校 (可排课)</option>
                   <option value="已毕业">已毕业 (不排课/课时清零)</option>
+                  <option value="合并解散">合并解散 (不排课/课时清零)</option>
                 </select>
               </div>
 
@@ -969,7 +970,7 @@ export function TeacherWorkload() {
               </div>
               <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg font-medium">
                 <Info className="w-3.5 h-3.5 shrink-0" />
-                <span>温馨提示: “外出实习” 和 “已毕业” 状态班级不排课，已排课时自动归零。</span>
+                <span>温馨提示: “外出实习”、“已毕业” 和 “合并解散” 状态班级不排课，已排课时自动归零。</span>
               </div>
             </div>
 
@@ -989,7 +990,7 @@ export function TeacherWorkload() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredClassesList.map((cls) => {
-                    const isDisabled = cls.status === '外出实习' || cls.status === '已毕业';
+                    const isDisabled = cls.status === '外出实习' || cls.status === '已毕业' || cls.status === '合并解散';
                     
                     return (
                       <tr key={cls.id} className={`hover:bg-slate-50 transition-colors ${isDisabled ? 'bg-slate-50/50' : ''}`}>
@@ -1031,12 +1032,14 @@ export function TeacherWorkload() {
                             cls.status === '外出实习' ? 'bg-orange-50 text-orange-700 border-orange-200' :
                             cls.status === '实习返校' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
                             cls.status === '已毕业' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                            cls.status === '合并解散' ? 'bg-slate-100 text-slate-500 border-slate-200' :
                             'bg-emerald-50 text-emerald-700 border-emerald-200'
                           }`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${
                               cls.status === '外出实习' ? 'bg-orange-500' :
                               cls.status === '实习返校' ? 'bg-indigo-500' :
                               cls.status === '已毕业' ? 'bg-rose-500' :
+                              cls.status === '合并解散' ? 'bg-slate-400' :
                               'bg-emerald-500'
                             }`} />
                             {cls.status || '正常在校'}
