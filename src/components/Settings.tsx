@@ -1211,12 +1211,24 @@ export function Settings() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-600 block mb-1">所属产业部</label>
-                  {user?.role === 'USER' && user.departmentIds && user.departmentIds.length > 1 ? (
-                    <select value={teacherForm.department || userDeptNames[0]} onChange={e => setTeacherForm({...teacherForm, department: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm">
-                      {userDeptNames.map(name => <option key={name} value={name}>{name}</option>)}
-                    </select>
+                  {user?.role === 'USER' && user.departmentIds && user.departmentIds.length === 1 ? (
+                    <input type="text" value={userDeptNames[0] || ''} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm disabled:bg-slate-50" disabled />
                   ) : (
-                    <input type="text" value={user?.role === 'USER' ? (userDeptNames[0] || '') : (teacherForm.department || '')} onChange={e => setTeacherForm({...teacherForm, department: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm disabled:bg-slate-50" disabled={user?.role === 'USER'} />
+                    <select 
+                      value={teacherForm.department || ''} 
+                      onChange={e => setTeacherForm({...teacherForm, department: e.target.value})} 
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm"
+                    >
+                      <option value="">请选择产业部</option>
+                      {user?.role === 'USER' ? (
+                        userDeptNames.map(name => <option key={name} value={name}>{name}</option>)
+                      ) : (
+                        state.departments.map(d => <option key={d.name} value={d.name}>{d.name}</option>)
+                      )}
+                      {teacherForm.department && !(user?.role === 'USER' ? userDeptNames : state.departments.map(d => d.name)).includes(teacherForm.department) && (
+                        <option value={teacherForm.department}>{teacherForm.department}</option>
+                      )}
+                    </select>
                   )}
                 </div>
                 <div>
@@ -1236,7 +1248,7 @@ export function Settings() {
                     name: newTeacherName.trim(),
                     gender: newTeacherGender as any,
                     idCard: newTeacherIdCard.trim(),
-                    department: user?.role === 'USER' ? (newTeacherDepartment || userDeptNames[0] || '') : newTeacherDepartment.trim(),
+                    department: user?.role === 'USER' && user.departmentIds?.length === 1 ? (userDeptNames[0] || '') : newTeacherDepartment.trim(),
                     primarySubject: newTeacherPrimarySubject.trim()
                   }); 
                   setNewTeacherName(''); 
@@ -1264,12 +1276,21 @@ export function Settings() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-600 block mb-1">所属产业部</label>
-                  {user?.role === 'USER' && user.departmentIds && user.departmentIds.length > 1 ? (
-                    <select value={newTeacherDepartment || userDeptNames[0]} onChange={(e) => setNewTeacherDepartment(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm">
-                      {userDeptNames.map(name => <option key={name} value={name}>{name}</option>)}
-                    </select>
+                  {user?.role === 'USER' && user.departmentIds && user.departmentIds.length === 1 ? (
+                    <input type="text" value={userDeptNames[0] || ''} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm disabled:bg-slate-50" disabled />
                   ) : (
-                    <input type="text" value={user?.role === 'USER' ? (userDeptNames[0] || '') : newTeacherDepartment} onChange={(e) => setNewTeacherDepartment(e.target.value)} placeholder="所属产业部" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm disabled:bg-slate-50" disabled={user?.role === 'USER'} />
+                    <select 
+                      value={newTeacherDepartment || ''} 
+                      onChange={(e) => setNewTeacherDepartment(e.target.value)} 
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm"
+                    >
+                      <option value="">请选择产业部</option>
+                      {user?.role === 'USER' ? (
+                        userDeptNames.map(name => <option key={name} value={name}>{name}</option>)
+                      ) : (
+                        state.departments.map(d => <option key={d.name} value={d.name}>{d.name}</option>)
+                      )}
+                    </select>
                   )}
                 </div>
                 <div>
