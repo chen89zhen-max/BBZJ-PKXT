@@ -89,59 +89,71 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-3">
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+        <div className="flex items-center gap-4">
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
+            className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-all active:scale-95"
             title={isSidebarOpen ? "收起侧边栏" : "展开侧边栏"}
           >
             <Menu className="w-5 h-5" />
           </button>
-          <h1 className="text-xl font-semibold text-slate-800">教学计划设置系统</h1>
+          <div className="flex flex-col">
+            <h1 className="text-xl font-bold text-slate-800 tracking-tight">教学计划设置系统</h1>
+            <span className="text-xs text-slate-500 font-medium">北碚职教中心</span>
+          </div>
         </div>
-        <div className="flex items-center gap-4 text-sm">
-          <span className="text-slate-600">欢迎, {user.username} ({user.role})</span>
-          <button onClick={handleLogout} className="flex items-center gap-1 text-slate-600 hover:text-rose-600">
-            <LogOut className="w-4 h-4" />
-            退出
-          </button>
+        <div className="flex items-center gap-5 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+              {user.username.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex flex-col hidden sm:flex">
+              <span className="text-slate-700 font-semibold">{user.username}</span>
+              <span className="text-xs text-slate-500">{user.role}</span>
+            </div>
+          </div>
+          <div className="h-6 w-px bg-slate-200 hidden sm:block"></div>
           {connected ? (
-            <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full font-medium">
-              <Wifi className="w-4 h-4" />
-              实时同步中
+            <span className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50/80 px-3 py-1.5 rounded-full font-medium border border-emerald-100 shadow-sm transition-colors">
+              <Wifi className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">实时同步中</span>
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-rose-600 bg-rose-50 px-3 py-1 rounded-full font-medium">
-              <WifiOff className="w-4 h-4" />
-              已断开连接
+            <span className="flex items-center gap-1.5 text-rose-600 bg-rose-50/80 px-3 py-1.5 rounded-full font-medium border border-rose-100 shadow-sm transition-colors">
+              <WifiOff className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">已断开连接</span>
             </span>
           )}
+          <button onClick={handleLogout} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-all font-medium">
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">退出</span>
+          </button>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <aside
-          className={`bg-white border-r border-slate-200 flex flex-col h-full transition-all duration-300 ease-in-out ${
+          className={`bg-white border-r border-slate-200 flex flex-col h-full transition-all duration-300 ease-in-out shadow-sm ${
             isSidebarOpen ? 'w-64 opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-full overflow-hidden'
           }`}
         >
-          <div className="p-4 flex-1 overflow-y-auto min-w-[16rem]">
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">专业部排课</h2>
-            <nav className="space-y-1">
+          <div className="p-5 flex-1 overflow-y-auto min-w-[16rem]">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">专业部排课</h2>
+            <nav className="space-y-1.5">
               {state.departments.map((dept) => (
                 canAccess(dept.id) && (
                   <button
                     key={dept.id}
                     onClick={() => setActiveTab(dept.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                       activeTab === dept.id
-                        ? 'bg-indigo-50 text-indigo-700'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-100'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-95'
                     }`}
                   >
-                    <div className={`w-2 h-2 rounded-full ${activeTab === dept.id ? 'bg-indigo-600' : 'bg-slate-300'}`} />
+                    <div className={`w-2 h-2 rounded-full shadow-sm transition-colors ${activeTab === dept.id ? 'bg-indigo-600' : 'bg-slate-300'}`} />
                     {dept.name}
                   </button>
                 )
@@ -149,16 +161,16 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
             </nav>
           </div>
 
-          <div className="p-4 border-t border-slate-200 mt-auto">
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">全局统计与设置</h2>
-            <nav className="space-y-1">
+          <div className="p-5 border-t border-slate-100 mt-auto bg-slate-50/50">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">全局统计与设置</h2>
+            <nav className="space-y-1.5">
               {canAccess('workload') && (
                 <button
                   onClick={() => setActiveTab('workload')}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'workload'
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-100'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-95'
                   }`}
                 >
                   <BarChart2 className="w-4 h-4" />
@@ -168,10 +180,10 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
               {canAccess('planner') && (
                 <button
                   onClick={() => setActiveTab('planner')}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'planner'
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-100'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-95'
                   }`}
                 >
                   <Calendar className="w-4 h-4" />
@@ -181,10 +193,10 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
               {canAccess('classroom') && (
                 <button
                   onClick={() => setActiveTab('classroom')}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'classroom'
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-100'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-95'
                   }`}
                 >
                   <Building2 className="w-4 h-4" />
@@ -194,10 +206,10 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
               {canAccess('settings') && (
                 <button
                   onClick={() => setActiveTab('settings')}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'settings'
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-100'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-95'
                   }`}
                 >
                   <SettingsIcon className="w-4 h-4" />
@@ -207,10 +219,10 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
               {user.role === 'SUPER_ADMIN' && (
                 <button
                   onClick={() => setActiveTab('users')}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'users'
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-100'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-95'
                   }`}
                 >
                   <UserCog className="w-4 h-4" />

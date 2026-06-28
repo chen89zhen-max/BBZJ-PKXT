@@ -788,38 +788,6 @@ export function SemesterPlanner() {
 
   return (
     <div className="space-y-6">
-      {/* Header Info */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 bg-gradient-to-r from-indigo-900 to-slate-800 p-6 rounded-2xl text-white shadow-md">
-        <div>
-          <span className="bg-indigo-500/30 text-indigo-200 text-xs px-2.5 py-1 rounded-full font-semibold uppercase tracking-wider">
-            学期切换与工作规划
-          </span>
-          <h2 className="text-3xl font-extrabold tracking-tight mt-2">
-            下学期教学工作与教师需求规划
-          </h2>
-          <p className="text-indigo-200 text-sm mt-1.5 max-w-2xl">
-            在学期末，根据新生招生预期和各年级状态（返校、实习），预设班级结构，智能测算师资缺口，最终一键安全过渡到下学期教学任务。
-          </p>
-        </div>
-        <div className="flex items-center gap-2 bg-white/10 p-3 rounded-xl border border-white/10 shrink-0 text-right">
-          <div>
-            <p className="text-xs text-indigo-200">
-              全校预估班级总数 / 预设 draft
-            </p>
-            <p className="text-xl font-bold">
-              {totals.totalClasses}{" "}
-              <span className="text-sm font-normal text-indigo-300">
-                个激活班
-              </span>{" "}
-              + {totals.totalPresetClasses}{" "}
-              <span className="text-sm font-normal text-indigo-300">
-                个预设
-              </span>
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Sub Tabs */}
       <div className="flex border-b border-slate-200 bg-white p-1 rounded-xl shadow-sm">
         <button

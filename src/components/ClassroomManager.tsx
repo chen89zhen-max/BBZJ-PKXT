@@ -49,7 +49,7 @@ export function ClassroomManager() {
     roomName: string;
     currentClassId: string | null;
   } | null>(null);
-  const [assignDeptId, setAssignDeptId] = useState<string>("all");
+  const [assignDeptId, setAssignDeptId] = useState<string | null>(null);
 
   const [deleteConfirm, setDeleteConfirm] = useState<{
     type: "building" | "floor" | "classroom";
@@ -376,7 +376,21 @@ export function ClassroomManager() {
 
                                 <button
                                   onClick={() => {
-                                    setAssignDeptId("all");
+                                    let initialDeptId: string | null = null;
+                                    if (room.classId) {
+                                      const assignedCls = state.classes.find(
+                                        (c) => c.id === room.classId,
+                                      );
+                                      if (assignedCls) {
+                                        const major = state.majors.find(
+                                          (m) => m.id === assignedCls.majorId,
+                                        );
+                                        if (major) {
+                                          initialDeptId = major.departmentId;
+                                        }
+                                      }
+                                    }
+                                    setAssignDeptId(initialDeptId);
                                     setAssignClassModal({
                                       buildingId: activeBuilding.id,
                                       floorId: floor.id,
@@ -573,21 +587,16 @@ export function ClassroomManager() {
 
             <div className="p-6 overflow-y-auto space-y-6">
               <div className="flex flex-col gap-3">
-                <label className="text-sm font-bold text-slate-700">
-                  1. 选择产业部进行筛选
+                <label className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                  <span className="flex items-center justify-center w-5 h-5 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full">1</span>
+                  请先选择所属产业部
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setAssignDeptId("all")}
-                    className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${assignDeptId === "all" ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
-                  >
-                    全部班级
-                  </button>
                   {state.departments.map((d) => (
                     <button
                       key={d.id}
                       onClick={() => setAssignDeptId(d.id)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${assignDeptId === d.id ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${assignDeptId === d.id ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
                     >
                       {d.name}
                     </button>
@@ -596,62 +605,73 @@ export function ClassroomManager() {
               </div>
 
               <div className="flex flex-col gap-3 pt-6 border-t border-slate-100">
-                <label className="text-sm font-bold text-slate-700">
-                  2. 点击选择入驻班级
+                <label className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                  <span className="flex items-center justify-center w-5 h-5 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full">2</span>
+                  点击选择入驻班级
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  <button
-                    onClick={() => {
-                      assignClassToRoom(
-                        assignClassModal.buildingId,
-                        assignClassModal.floorId,
-                        assignClassModal.roomId,
-                        undefined,
-                      );
-                      setAssignClassModal(null);
-                    }}
-                    className={`p-3 text-sm text-center border rounded-lg transition-colors ${!assignClassModal.currentClassId ? "bg-indigo-50 border-indigo-300 font-bold text-indigo-700" : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"}`}
-                  >
-                    (不分配 / 空置)
-                  </button>
+                
+                {assignDeptId === null ? (
+                  <div className="col-span-full py-10 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl space-y-2">
+                    <p className="text-sm text-slate-500 font-medium">💡 班级数量较多，请先在上方选择一个产业部</p>
+                    <p className="text-xs text-slate-400">系统将即时罗列该产业部下的所属班级，方便您精准选入</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    <button
+                      onClick={() => {
+                        assignClassToRoom(
+                          assignClassModal.buildingId,
+                          assignClassModal.floorId,
+                          assignClassModal.roomId,
+                          undefined,
+                        );
+                        setAssignClassModal(null);
+                      }}
+                      className={`p-3 text-sm text-center border rounded-lg transition-all ${!assignClassModal.currentClassId ? "bg-indigo-50 border-indigo-300 font-bold text-indigo-700 shadow-sm" : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"}`}
+                    >
+                      (不分配 / 空置此教室)
+                    </button>
 
-                  {state.classes
-                    .filter((c) => {
-                      if (c.status === "合并解散" || c.status === "已毕业")
-                        return false;
-                      if (assignDeptId === "all") return true;
-                      const major = state.majors.find(
-                        (m) => m.id === c.majorId,
-                      );
-                      return major && major.departmentId === assignDeptId;
-                    })
-                    .map((c) => {
-                      const grade = state.grades.find(
-                        (g) => g.id === c.gradeId,
-                      );
-                      const fullName = grade
-                        ? `${grade.name}${c.name}`
-                        : c.name;
-                      return (
-                        <button
-                          key={c.id}
-                          onClick={() => {
-                            assignClassToRoom(
-                              assignClassModal.buildingId,
-                              assignClassModal.floorId,
-                              assignClassModal.roomId,
-                              c.id,
-                            );
-                            setAssignClassModal(null);
-                          }}
-                          className={`p-3 text-sm text-center border rounded-lg truncate transition-colors ${assignClassModal.currentClassId === c.id ? "bg-indigo-600 border-indigo-600 text-white font-bold shadow-sm" : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:text-indigo-700 hover:shadow-sm"}`}
-                          title={fullName}
-                        >
-                          {fullName}
-                        </button>
-                      );
-                    })}
-                </div>
+                    {state.classes
+                      .filter((c) => {
+                        if (c.status === "合并解散" || c.status === "已毕业")
+                          return false;
+                        const major = state.majors.find(
+                          (m) => m.id === c.majorId,
+                        );
+                        return major && major.departmentId === assignDeptId;
+                      })
+                      .map((c) => {
+                        const grade = state.grades.find(
+                          (g) => g.id === c.gradeId,
+                        );
+                        const fullName = grade
+                          ? `${grade.name}${c.name}`
+                          : c.name;
+                        return (
+                          <button
+                            key={c.id}
+                            onClick={() => {
+                              assignClassToRoom(
+                                assignClassModal.buildingId,
+                                assignClassModal.floorId,
+                                assignClassModal.roomId,
+                                c.id,
+                              );
+                              setAssignClassModal(null);
+                            }}
+                            className={`p-3 text-sm text-left border rounded-lg hover:border-indigo-400 hover:text-indigo-700 hover:shadow-sm transition-all flex flex-col justify-between h-16 ${assignClassModal.currentClassId === c.id ? "bg-indigo-600 border-indigo-600 text-white font-bold shadow-sm" : "bg-white border-slate-200 text-slate-700"}`}
+                            title={fullName}
+                          >
+                            <span className="font-bold text-sm truncate w-full">{fullName}</span>
+                            <span className={`text-[10px] ${assignClassModal.currentClassId === c.id ? "text-indigo-200" : "text-slate-400"}`}>
+                              学生人数: {c.studentCount || 0}人
+                            </span>
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
             </div>
           </div>

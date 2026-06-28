@@ -73,74 +73,7 @@ export function TeacherWorkload() {
   const [classSearchQuery, setClassSearchQuery] = useState<string>("");
 
   // -------------------------------------------------------------------------
-  // 1. DATA PREPARATION: Overall Metrics
-  // -------------------------------------------------------------------------
-
-  // Teaching schedules lookup map
-  const scheduleMap = useMemo(() => {
-    const map: Record<string, number> = {};
-    state.schedules.forEach((s) => {
-      map[`${s.classId}:::${s.subjectId}`] = s.hours;
-    });
-    return map;
-  }, [state.schedules]);
-
-  // Total teaching hours in the system
-  const totalSchoolHours = useMemo(() => {
-    return state.schedules.reduce((sum, s) => sum + (s.hours || 0), 0);
-  }, [state.schedules]);
-
-  // Student enrollment metrics
-  const studentMetrics = useMemo(() => {
-    const adminClasses = state.classes.filter(
-      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
-    );
-    const activeClasses = adminClasses.filter(
-      (c) => c.status !== "已毕业" && c.status !== "合并解散",
-    );
-    const totalInSchool = activeClasses
-      .filter((c) => c.status === "正常在校")
-      .reduce((sum, c) => sum + (c.studentCount || 0), 0);
-    const totalInternship = activeClasses
-      .filter((c) => c.status === "外出实习")
-      .reduce((sum, c) => sum + (c.studentCount || 0), 0);
-    const totalReturned = activeClasses
-      .filter((c) => c.status === "实习返校")
-      .reduce((sum, c) => sum + (c.studentCount || 0), 0);
-    const grandTotal = totalInSchool + totalInternship + totalReturned;
-
-    return {
-      totalInSchool,
-      totalInternship,
-      totalReturned,
-      grandTotal,
-      graduated: adminClasses
-        .filter((c) => c.status === "已毕业")
-        .reduce((sum, c) => sum + (c.studentCount || 0), 0),
-    };
-  }, [state.classes]);
-
-  // Classes count metrics
-  const classMetrics = useMemo(() => {
-    const adminClasses = state.classes.filter(
-      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
-    );
-    const total = adminClasses.length;
-    const active = adminClasses.filter(
-      (c) => c.status !== "已毕业" && c.status !== "合并解散",
-    ).length;
-    const inSchool = adminClasses.filter((c) => c.status === "正常在校").length;
-    const internship = adminClasses.filter(
-      (c) => c.status === "外出实习",
-    ).length;
-    const returned = adminClasses.filter((c) => c.status === "实习返校").length;
-    const graduated = adminClasses.filter((c) => c.status === "已毕业").length;
-
-    return { total, active, inSchool, internship, returned, graduated };
-  }, [state.classes]);
-
-  // -------------------------------------------------------------------------
-  // 2. DATA PREPARATION: Tab 1 (Overview Charts)
+  // 1. DATA PREPARATION: States & Global Filters
   // -------------------------------------------------------------------------
 
   const [chartFilters, setChartFilters] = useState({
@@ -152,49 +85,16 @@ export function TeacherWorkload() {
     "students" | "classes"
   >("students");
 
-  // Grade-wise Student & Class Count
-  const gradeStats = useMemo(() => {
-    const adminClasses = state.classes.filter(
-      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
-    );
-    return state.grades.map((grade) => {
-      const gradeClasses = adminClasses.filter((c) => c.gradeId === grade.id);
-      const classCount = gradeClasses.length;
-      const studentCount = gradeClasses.reduce(
-        (sum, c) => sum + (c.studentCount || 0),
-        0,
-      );
-      return {
-        name: grade.name,
-        班级数: classCount,
-        学生人数: studentCount,
-      };
+  // Teaching schedules lookup map
+  const scheduleMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    state.schedules.forEach((s) => {
+      map[`${s.classId}:::${s.subjectId}`] = s.hours;
     });
-  }, [state.classes, state.grades]);
+    return map;
+  }, [state.schedules]);
 
-  // Major-wise Student Distribution
-  const majorStats = useMemo(() => {
-    const adminClasses = state.classes.filter(
-      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
-    );
-    return state.majors
-      .map((major) => {
-        const majorClasses = adminClasses.filter((c) => c.majorId === major.id);
-        const studentCount = majorClasses.reduce(
-          (sum, c) => sum + (c.studentCount || 0),
-          0,
-        );
-        const classCount = majorClasses.length;
-        return {
-          name: major.name,
-          班级数: classCount,
-          学生人数: studentCount,
-        };
-      })
-      .sort((a, b) => b["学生人数"] - a["学生人数"])
-      .slice(0, 8); // Top 8 majors
-  }, [state.majors, state.classes]);
-
+  // Active filtered administrative classes (excluding graduated, duplicate classes)
   const filteredChartClasses = useMemo(() => {
     return state.classes.filter((c) => {
       const isAdmin =
@@ -221,6 +121,255 @@ export function TeacherWorkload() {
       return true;
     });
   }, [state.classes, state.majors, chartFilters]);
+
+  // Classes count metrics (reactive to filters)
+  const classMetrics = useMemo(() => {
+    const adminClasses = state.classes.filter(
+      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
+    );
+    const filtered = adminClasses.filter((c) => {
+      if (chartFilters.gradeId !== "all" && c.gradeId !== chartFilters.gradeId)
+        return false;
+
+      if (chartFilters.deptId !== "all" || chartFilters.majorId !== "all") {
+        const major = state.majors.find((m) => m.id === c.majorId);
+        if (!major) return false;
+
+        if (chartFilters.majorId !== "all" && major.id !== chartFilters.majorId)
+          return false;
+        if (
+          chartFilters.deptId !== "all" &&
+          major.departmentId !== chartFilters.deptId
+        )
+          return false;
+      }
+      return true;
+    });
+
+    const total = filtered.length;
+    const active = filtered.filter(
+      (c) => c.status !== "已毕业" && c.status !== "合并解散",
+    ).length;
+    const inSchool = filtered.filter((c) => c.status === "正常在校").length;
+    const internship = filtered.filter((c) => c.status === "外出实习").length;
+    const returned = filtered.filter((c) => c.status === "实习返校").length;
+    const graduated = filtered.filter((c) => c.status === "已毕业").length;
+
+    return { total, active, inSchool, internship, returned, graduated };
+  }, [state.classes, state.majors, chartFilters]);
+
+  // Student enrollment metrics (reactive to filters)
+  const studentMetrics = useMemo(() => {
+    const adminClasses = state.classes.filter(
+      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
+    );
+    const filtered = adminClasses.filter((c) => {
+      if (chartFilters.gradeId !== "all" && c.gradeId !== chartFilters.gradeId)
+        return false;
+
+      if (chartFilters.deptId !== "all" || chartFilters.majorId !== "all") {
+        const major = state.majors.find((m) => m.id === c.majorId);
+        if (!major) return false;
+
+        if (chartFilters.majorId !== "all" && major.id !== chartFilters.majorId)
+          return false;
+        if (
+          chartFilters.deptId !== "all" &&
+          major.departmentId !== chartFilters.deptId
+        )
+          return false;
+      }
+      return true;
+    });
+
+    const activeClasses = filtered.filter(
+      (c) => c.status !== "已毕业" && c.status !== "合并解散",
+    );
+    const totalInSchool = activeClasses
+      .filter((c) => c.status === "正常在校")
+      .reduce((sum, c) => sum + (c.studentCount || 0), 0);
+    const totalInternship = activeClasses
+      .filter((c) => c.status === "外出实习")
+      .reduce((sum, c) => sum + (c.studentCount || 0), 0);
+    const totalReturned = activeClasses
+      .filter((c) => c.status === "实习返校")
+      .reduce((sum, c) => sum + (c.studentCount || 0), 0);
+    const grandTotal = totalInSchool + totalInternship + totalReturned;
+
+    return {
+      totalInSchool,
+      totalInternship,
+      totalReturned,
+      grandTotal,
+      graduated: filtered
+        .filter((c) => c.status === "已毕业")
+        .reduce((sum, c) => sum + (c.studentCount || 0), 0),
+    };
+  }, [state.classes, state.majors, chartFilters]);
+
+  // Total teaching hours (reactive to filters)
+  const totalSchoolHours = useMemo(() => {
+    const adminClasses = state.classes.filter(
+      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
+    );
+    const filtered = adminClasses.filter((c) => {
+      if (chartFilters.gradeId !== "all" && c.gradeId !== chartFilters.gradeId)
+        return false;
+
+      if (chartFilters.deptId !== "all" || chartFilters.majorId !== "all") {
+        const major = state.majors.find((m) => m.id === c.majorId);
+        if (!major) return false;
+
+        if (chartFilters.majorId !== "all" && major.id !== chartFilters.majorId)
+          return false;
+        if (
+          chartFilters.deptId !== "all" &&
+          major.departmentId !== chartFilters.deptId
+        )
+          return false;
+      }
+      return true;
+    });
+
+    const classIds = new Set(filtered.map((c) => c.id));
+    return state.schedules.reduce((sum, s) => {
+      if (classIds.has(s.classId)) {
+        return sum + (s.hours || 0);
+      }
+      return sum;
+    }, 0);
+  }, [state.schedules, state.classes, state.majors, chartFilters]);
+
+  // Total teachers count (reactive to filters)
+  const filteredTeachersCount = useMemo(() => {
+    let list = state.teachers;
+    if (chartFilters.deptId !== "all") {
+      const dept = state.departments.find((d) => d.id === chartFilters.deptId);
+      if (dept) {
+        list = list.filter((t) => t.department === dept.name);
+      }
+    }
+    if (chartFilters.majorId !== "all" || chartFilters.gradeId !== "all") {
+      const matchingClasses = state.classes.filter((c) => {
+        if (chartFilters.gradeId !== "all" && c.gradeId !== chartFilters.gradeId)
+          return false;
+        if (chartFilters.majorId !== "all" && c.majorId !== chartFilters.majorId)
+          return false;
+        return true;
+      });
+      const classIds = new Set(matchingClasses.map((c) => c.id));
+      const matchingSchedules = state.schedules.filter((s) =>
+        classIds.has(s.classId),
+      );
+      const teacherIds = new Set(
+        matchingSchedules.map((s) => s.teacherId).filter(Boolean),
+      );
+      if (teacherIds.size > 0) {
+        list = list.filter((t) => teacherIds.has(t.id));
+      } else {
+        return 0;
+      }
+    }
+    return list.length;
+  }, [
+    state.teachers,
+    state.departments,
+    state.classes,
+    state.schedules,
+    chartFilters,
+  ]);
+
+  // Grade-wise Student & Class Count (reactive to filters)
+  const gradeStats = useMemo(() => {
+    const adminClasses = state.classes.filter(
+      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
+    );
+    const filteredClasses = adminClasses.filter((c) => {
+      if (chartFilters.deptId !== "all" || chartFilters.majorId !== "all") {
+        const major = state.majors.find((m) => m.id === c.majorId);
+        if (!major) return false;
+
+        if (chartFilters.majorId !== "all" && major.id !== chartFilters.majorId)
+          return false;
+        if (
+          chartFilters.deptId !== "all" &&
+          major.departmentId !== chartFilters.deptId
+        )
+          return false;
+      }
+      return true;
+    });
+
+    return state.grades
+      .map((grade) => {
+        const gradeClasses = filteredClasses.filter(
+          (c) =>
+            c.gradeId === grade.id &&
+            c.status !== "已毕业" &&
+            c.status !== "合并解散",
+        );
+        const classCount = gradeClasses.length;
+        const studentCount = gradeClasses.reduce(
+          (sum, c) => sum + (c.studentCount || 0),
+          0,
+        );
+        return {
+          name: grade.name,
+          班级数: classCount,
+          学生人数: studentCount,
+        };
+      })
+      .filter((g) => g.班级数 > 0 || g.学生人数 > 0);
+  }, [state.classes, state.grades, state.majors, chartFilters]);
+
+  // Major-wise Student Distribution (reactive to filters)
+  const majorStats = useMemo(() => {
+    const adminClasses = state.classes.filter(
+      (c) =>
+        !c.name.includes("(复排)") &&
+        !c.name.includes("（复排）") &&
+        c.status !== "已毕业" &&
+        c.status !== "合并解散",
+    );
+    const filteredClasses = adminClasses.filter((c) => {
+      if (chartFilters.gradeId !== "all" && c.gradeId !== chartFilters.gradeId)
+        return false;
+
+      if (chartFilters.deptId !== "all" || chartFilters.majorId !== "all") {
+        const major = state.majors.find((m) => m.id === c.majorId);
+        if (!major) return false;
+
+        if (chartFilters.majorId !== "all" && major.id !== chartFilters.majorId)
+          return false;
+        if (
+          chartFilters.deptId !== "all" &&
+          major.departmentId !== chartFilters.deptId
+        )
+          return false;
+      }
+      return true;
+    });
+
+    return state.majors
+      .map((major) => {
+        const majorClasses = filteredClasses.filter(
+          (c) => c.majorId === major.id,
+        );
+        const studentCount = majorClasses.reduce(
+          (sum, c) => sum + (c.studentCount || 0),
+          0,
+        );
+        const classCount = majorClasses.length;
+        return {
+          name: major.name,
+          班级数: classCount,
+          学生人数: studentCount,
+        };
+      })
+      .filter((m) => m.班级数 > 0 || m.学生人数 > 0)
+      .sort((a, b) => b["学生人数"] - a["学生人数"])
+      .slice(0, 8); // Top 8 majors
+  }, [state.majors, state.classes, chartFilters]);
 
   // Class Categories Breakdown (Ordinary, College Entrance, 3+2 etc.)
   const classTypeBreakdown = useMemo(() => {
@@ -289,9 +438,12 @@ export function TeacherWorkload() {
     return state.departments.map((dept) => {
       const deptMajors = state.majors.filter((m) => m.departmentId === dept.id);
       const deptMajorIds = new Set(deptMajors.map((m) => m.id));
-      const deptClasses = state.classes.filter((c) =>
-        deptMajorIds.has(c.majorId),
-      );
+      const deptClasses = state.classes.filter((c) => {
+        if (!deptMajorIds.has(c.majorId)) return false;
+        if (chartFilters.gradeId !== "all" && c.gradeId !== chartFilters.gradeId)
+          return false;
+        return true;
+      });
       const adminDeptClasses = deptClasses.filter(
         (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）"),
       );
@@ -337,6 +489,7 @@ export function TeacherWorkload() {
     state.teachers,
     state.schedules,
     state.subjects,
+    chartFilters.gradeId,
   ]);
 
   const majorDetailedList = useMemo(() => {
@@ -759,6 +912,99 @@ export function TeacherWorkload() {
       {/* 2. TAB CONTENT: 1. OVERVIEW */}
       {activeTab === "overview" && (
         <div className="space-y-6 animate-fade-in">
+          {/* Global Dashboard Filters */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                <Filter className="w-4 h-4" />
+              </span>
+              <div>
+                <h4 className="text-sm font-bold text-slate-700">看板数据筛选</h4>
+                <p className="text-xs text-slate-400">选择维度进行穿透，支持各图表及指标联动</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-col gap-1 w-full sm:w-40">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">年级维度</span>
+                <select
+                  value={chartFilters.gradeId}
+                  onChange={(e) =>
+                    setChartFilters({
+                      ...chartFilters,
+                      gradeId: e.target.value,
+                    })
+                  }
+                  className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-700 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm transition-all"
+                >
+                  <option value="all">所有年级</option>
+                  {state.grades.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1 w-full sm:w-40">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">产业部维度</span>
+                <select
+                  value={chartFilters.deptId}
+                  onChange={(e) =>
+                    setChartFilters({
+                      ...chartFilters,
+                      deptId: e.target.value,
+                      majorId: "all", // Reset major when changing department
+                    })
+                  }
+                  className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-700 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm transition-all"
+                >
+                  <option value="all">所有产业部</option>
+                  {state.departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1 w-full sm:w-48">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">专业维度</span>
+                <select
+                  value={chartFilters.majorId}
+                  onChange={(e) =>
+                    setChartFilters({
+                      ...chartFilters,
+                      majorId: e.target.value,
+                    })
+                  }
+                  className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-700 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm transition-all"
+                >
+                  <option value="all">所有专业</option>
+                  {state.majors
+                    .filter(
+                      (m) =>
+                        chartFilters.deptId === "all" ||
+                        m.departmentId === chartFilters.deptId,
+                    )
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {(chartFilters.gradeId !== "all" || chartFilters.deptId !== "all" || chartFilters.majorId !== "all") && (
+                <button
+                  onClick={() => setChartFilters({ gradeId: "all", deptId: "all", majorId: "all" })}
+                  className="sm:mt-4 text-xs text-indigo-600 hover:text-indigo-800 font-semibold underline cursor-pointer"
+                >
+                  重置
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Big Stat Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
@@ -845,15 +1091,15 @@ export function TeacherWorkload() {
               <div>
                 <div className="flex items-baseline gap-1">
                   <span className="text-3xl font-extrabold text-slate-800">
-                    {state.teachers.length}
+                    {filteredTeachersCount}
                   </span>
                   <span className="text-sm text-slate-500">人</span>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">
                   师生比 1 :{" "}
-                  {state.teachers.length > 0
+                  {filteredTeachersCount > 0
                     ? (
-                        studentMetrics.grandTotal / state.teachers.length
+                        studentMetrics.grandTotal / filteredTeachersCount
                       ).toFixed(1)
                     : "0"}
                 </p>
@@ -985,72 +1231,7 @@ export function TeacherWorkload() {
 
             {/* Right: Progress Gages for Class Status & Types */}
             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-6">
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5 mb-1 text-xs font-semibold text-slate-500">
-                  <Filter className="w-3.5 h-3.5" /> 看板数据筛选
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    value={chartFilters.gradeId}
-                    onChange={(e) =>
-                      setChartFilters({
-                        ...chartFilters,
-                        gradeId: e.target.value,
-                      })
-                    }
-                    className="col-span-2 text-xs px-2 py-1.5 border border-slate-200 rounded text-slate-700 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="all">所有年级</option>
-                    {state.grades.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={chartFilters.deptId}
-                    onChange={(e) =>
-                      setChartFilters({
-                        ...chartFilters,
-                        deptId: e.target.value,
-                      })
-                    }
-                    className="text-xs px-2 py-1.5 border border-slate-200 rounded text-slate-700 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="all">所有产业部</option>
-                    {state.departments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={chartFilters.majorId}
-                    onChange={(e) =>
-                      setChartFilters({
-                        ...chartFilters,
-                        majorId: e.target.value,
-                      })
-                    }
-                    className="text-xs px-2 py-1.5 border border-slate-200 rounded text-slate-700 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="all">所有专业</option>
-                    {state.majors
-                      .filter(
-                        (m) =>
-                          chartFilters.deptId === "all" ||
-                          m.departmentId === chartFilters.deptId,
-                      )
-                      .map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="border-t border-slate-100 pt-5">
+              <div>
                 <h3 className="text-sm font-bold text-slate-700 mb-3.5 flex items-center gap-1.5">
                   <PieChart className="w-4 h-4 text-slate-400" />
                   班级运行状态构成比
