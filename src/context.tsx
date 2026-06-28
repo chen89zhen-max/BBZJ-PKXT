@@ -352,7 +352,6 @@ export const AppProvider: React.FC<{
     const remainingSubjectIds = new Set(
       state.subjects.filter((s) => s.departmentId !== id).map((s) => s.id),
     );
-    const remainingTeacherIds = new Set(state.teachers.map((t) => t.id));
 
     broadcastState({
       ...state,
@@ -363,8 +362,7 @@ export const AppProvider: React.FC<{
       schedules: state.schedules.filter(
         (s) =>
           remainingClassIds.has(s.classId) &&
-          remainingSubjectIds.has(s.subjectId) &&
-          remainingTeacherIds.has(s.teacherId),
+          remainingSubjectIds.has(s.subjectId)
       ),
     });
   };
@@ -388,7 +386,6 @@ export const AppProvider: React.FC<{
     const remainingSubjectIds = new Set(
       state.subjects.filter((s) => s.majorId !== id).map((s) => s.id),
     );
-    const remainingTeacherIds = new Set(state.teachers.map((t) => t.id));
 
     broadcastState({
       ...state,
@@ -398,8 +395,7 @@ export const AppProvider: React.FC<{
       schedules: state.schedules.filter(
         (s) =>
           remainingClassIds.has(s.classId) &&
-          remainingSubjectIds.has(s.subjectId) &&
-          remainingTeacherIds.has(s.teacherId),
+          remainingSubjectIds.has(s.subjectId)
       ),
     });
   };
@@ -442,36 +438,24 @@ export const AppProvider: React.FC<{
   };
   const deleteClass = (id: string) => {
     const remainingClasses = state.classes.filter((c) => c.id !== id);
-    const remainingClassIds = new Set(remainingClasses.map((c) => c.id));
-    const remainingSubjectIds = new Set(state.subjects.map((s) => s.id));
-    const remainingTeacherIds = new Set(state.teachers.map((t) => t.id));
 
     broadcastState({
       ...state,
       classes: remainingClasses,
       schedules: state.schedules.filter(
-        (s) =>
-          remainingClassIds.has(s.classId) &&
-          remainingSubjectIds.has(s.subjectId) &&
-          remainingTeacherIds.has(s.teacherId),
+        (s) => s.classId !== id
       ),
     });
   };
   const deleteClasses = (ids: string[]) => {
     const idSet = new Set(ids);
     const remainingClasses = state.classes.filter((c) => !idSet.has(c.id));
-    const remainingClassIds = new Set(remainingClasses.map((c) => c.id));
-    const remainingSubjectIds = new Set(state.subjects.map((s) => s.id));
-    const remainingTeacherIds = new Set(state.teachers.map((t) => t.id));
 
     broadcastState({
       ...state,
       classes: remainingClasses,
       schedules: state.schedules.filter(
-        (s) =>
-          remainingClassIds.has(s.classId) &&
-          remainingSubjectIds.has(s.subjectId) &&
-          remainingTeacherIds.has(s.teacherId),
+        (s) => !idSet.has(s.classId)
       ),
     });
   };
@@ -618,37 +602,31 @@ export const AppProvider: React.FC<{
   };
   const deleteTeacher = (id: string) => {
     const remainingTeachers = state.teachers.filter((t) => t.id !== id);
-    const remainingTeacherIds = new Set(remainingTeachers.map((t) => t.id));
-    const remainingClassIds = new Set(state.classes.map((c) => c.id));
-    const remainingSubjectIds = new Set(state.subjects.map((s) => s.id));
 
     broadcastState({
       ...state,
       teachers: remainingTeachers,
-      schedules: state.schedules.filter(
-        (s) =>
-          remainingTeacherIds.has(s.teacherId) &&
-          remainingClassIds.has(s.classId) &&
-          remainingSubjectIds.has(s.subjectId),
-      ),
+      schedules: state.schedules.map((s) => {
+        let updated = { ...s };
+        if (s.teacherId === id) updated.teacherId = "";
+        if ((s as any).assistantTeacherId === id) (updated as any).assistantTeacherId = "";
+        return updated;
+      }),
     });
   };
   const deleteTeachers = (ids: string[]) => {
     const idSet = new Set(ids);
     const remainingTeachers = state.teachers.filter((t) => !idSet.has(t.id));
-    const remainingTeacherIds = new Set(remainingTeachers.map((t) => t.id));
-    const remainingClassIds = new Set(state.classes.map((c) => c.id));
-    const remainingSubjectIds = new Set(state.subjects.map((s) => s.id));
 
     broadcastState({
       ...state,
       teachers: remainingTeachers,
-      schedules: state.schedules.filter(
-        (s) =>
-          remainingTeacherIds.has(s.teacherId) &&
-          remainingClassIds.has(s.classId) &&
-          remainingSubjectIds.has(s.subjectId),
-      ),
+      schedules: state.schedules.map((s) => {
+        let updated = { ...s };
+        if (idSet.has(s.teacherId)) updated.teacherId = "";
+        if ((s as any).assistantTeacherId && idSet.has((s as any).assistantTeacherId)) (updated as any).assistantTeacherId = "";
+        return updated;
+      }),
     });
   };
 
@@ -718,37 +696,21 @@ export const AppProvider: React.FC<{
   };
   const deleteSubject = (id: string) => {
     const remainingSubjects = state.subjects.filter((s) => s.id !== id);
-    const remainingSubjectIds = new Set(remainingSubjects.map((s) => s.id));
-    const remainingClassIds = new Set(state.classes.map((c) => c.id));
-    const remainingTeacherIds = new Set(state.teachers.map((t) => t.id));
 
     broadcastState({
       ...state,
       subjects: remainingSubjects,
-      schedules: state.schedules.filter(
-        (s) =>
-          remainingSubjectIds.has(s.subjectId) &&
-          remainingClassIds.has(s.classId) &&
-          remainingTeacherIds.has(s.teacherId),
-      ),
+      schedules: state.schedules.filter((s) => s.subjectId !== id),
     });
   };
   const deleteSubjects = (ids: string[]) => {
     const idSet = new Set(ids);
     const remainingSubjects = state.subjects.filter((s) => !idSet.has(s.id));
-    const remainingSubjectIds = new Set(remainingSubjects.map((s) => s.id));
-    const remainingClassIds = new Set(state.classes.map((c) => c.id));
-    const remainingTeacherIds = new Set(state.teachers.map((t) => t.id));
 
     broadcastState({
       ...state,
       subjects: remainingSubjects,
-      schedules: state.schedules.filter(
-        (s) =>
-          remainingSubjectIds.has(s.subjectId) &&
-          remainingClassIds.has(s.classId) &&
-          remainingTeacherIds.has(s.teacherId),
-      ),
+      schedules: state.schedules.filter((s) => !idSet.has(s.subjectId)),
     });
   };
 

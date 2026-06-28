@@ -209,10 +209,10 @@ export function TeacherWorkload() {
 
   // Total teaching hours (reactive to filters)
   const totalSchoolHours = useMemo(() => {
-    const adminClasses = state.classes.filter(
-      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）") && c.relationType !== "split" && c.relationType !== "merged",
+    const validClasses = state.classes.filter(
+      (c) => !c.name.includes("(复排)") && !c.name.includes("（复排）")
     );
-    const filtered = adminClasses.filter((c) => {
+    const filtered = validClasses.filter((c) => {
       if (chartFilters.gradeId !== "all" && c.gradeId !== chartFilters.gradeId)
         return false;
 
