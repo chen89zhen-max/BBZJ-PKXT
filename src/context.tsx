@@ -179,7 +179,7 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
         if (deptClassIds.has(s.classId)) return false;
         
         // Remove if it's orphaned (points to non-existent class, subject, or teacher)
-        if (!validClassIds.has(s.classId) || !validSubjectIds.has(s.subjectId) || !validTeacherIds.has(s.teacherId)) return false;
+        if (!validClassIds.has(s.classId) || !validSubjectIds.has(s.subjectId) || (s.teacherId && !validTeacherIds.has(s.teacherId))) return false;
         
         return true;
       })
@@ -602,7 +602,10 @@ export const AppProvider: React.FC<{ children: ReactNode, user: Partial<User> | 
     const otherSchedules = state.schedules.filter(s => !deptClassIds.has(s.classId));
     
     // Add archived schedules (generate new IDs to avoid conflicts)
-    const restoredSchedules = archive.schedules.map(s => ({ ...s, id: uuidv4() }));
+    // Only restore schedules that actually belong to this department's classes 
+    // (in case an old archive accidentally contained other departments' schedules)
+    const validArchivedSchedules = archive.schedules.filter(s => deptClassIds.has(s.classId));
+    const restoredSchedules = validArchivedSchedules.map(s => ({ ...s, id: uuidv4() }));
 
     broadcastState({
       ...state,
