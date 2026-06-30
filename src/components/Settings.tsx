@@ -163,6 +163,9 @@ export function Settings() {
   const [newTeacherIdCard, setNewTeacherIdCard] = useState('');
   const [newTeacherDepartment, setNewTeacherDepartment] = useState('');
   const [newTeacherPrimarySubject, setNewTeacherPrimarySubject] = useState('');
+  const [newTeacherEmploymentType, setNewTeacherEmploymentType] = useState<'在编' | '外聘' | '兼职' | ''>('');
+  const [newTeacherPositionType, setNewTeacherPositionType] = useState<'专任教师' | '教辅职员' | '兼课教师' | ''>('');
+  const [newTeacherDefaultWeeklyHours, setNewTeacherDefaultWeeklyHours] = useState<number | ''>('');
   
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectType, setNewSubjectType] = useState<SubjectType>('中职公共基础课');
@@ -187,6 +190,17 @@ export function Settings() {
   const [selectedTeachers, setSelectedTeachers] = useState<Set<string>>(new Set());
   const [selectedSubjects, setSelectedSubjects] = useState<Set<string>>(new Set());
   const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set());
+
+  // Default Weekly Hours Calculation
+  const calculateDefaultWeeklyHours = (empType: string | undefined, posType: string | undefined) => {
+    if (empType === '在编' && posType === '专任教师') return 14;
+    if (empType === '在编' && posType === '教辅职员') return 0;
+    if (empType === '在编' && posType === '兼课教师') return 6;
+    if (empType === '外聘' && posType === '专任教师') return 18;
+    if (empType === '外聘' && posType === '教辅职员') return 0;
+    if (empType === '外聘' && posType === '兼课教师') return 8;
+    return '';
+  };
 
   // Modal State
   const [confirmModal, setConfirmModal] = useState<{
@@ -519,7 +533,10 @@ export function Settings() {
         gender: row['性别'] || row['gender'] || '',
         idCard: row['身份证号码'] || row['idCard'] || '',
         department: row['所属产业部'] || row['department'] || '',
-        primarySubject: row['主要任教学科'] || row['primarySubject'] || ''
+        primarySubject: row['主要任教学科'] || row['primarySubject'] || '',
+        employmentType: row['聘用性质'] || row['employmentType'] || undefined,
+        positionType: row['岗位类型'] || row['positionType'] || undefined,
+        defaultWeeklyHours: row['默认周课时'] ? Number(row['默认周课时']) : (row['defaultWeeklyHours'] ? Number(row['defaultWeeklyHours']) : undefined)
       })).filter(t => t.name);
 
       if (teachersToAdd.length > 0) {
@@ -536,7 +553,10 @@ export function Settings() {
       '性别': '男',
       '身份证号码': '110105199001011234',
       '所属产业部': '信息技术部',
-      '主要任教学科': '计算机基础'
+      '主要任教学科': '计算机基础',
+      '聘用性质': '在编',
+      '岗位类型': '专任教师',
+      '默认周课时': 14
     }]);
     const wb = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(wb, ws, '教师导入模板');
@@ -1128,7 +1148,7 @@ export function Settings() {
                                 <input type="checkbox" checked={selectedClasses.has(cls.id)} onChange={() => toggleClassSelection(cls.id)} className="cursor-pointer" />
                               )}
                               <h4 className="font-bold text-slate-800">{cls.name}</h4>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-semibold border ${
                                 (cls.status || '正常在校') === '正常在校' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                                 (cls.status || '正常在校') === '外出实习' ? 'bg-orange-50 text-orange-700 border-orange-100' :
                                 (cls.status || '正常在校') === '实习返校' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
@@ -1173,7 +1193,7 @@ export function Settings() {
                 <UserCircle className="w-5 h-5 text-indigo-600" />
                 {editingTeacherId ? '编辑教师' : '添加教师'}
               </h3>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-sm text-slate-500 mt-1">
                 {editingTeacherId ? '修改当前教师的基础属性和任教学科' : '向系统录入一位新的教师信息'}
               </p>
             </div>
@@ -1181,11 +1201,11 @@ export function Settings() {
             {editingTeacherId ? (
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">姓名 *</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">姓名 *</label>
                   <input type="text" value={teacherForm.name || ''} onChange={e => setTeacherForm({...teacherForm, name: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" required />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">性别</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">性别</label>
                   <select value={teacherForm.gender || ''} onChange={e => setTeacherForm({...teacherForm, gender: e.target.value as any})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500">
                     <option value="">未知</option>
                     <option value="男">男</option>
@@ -1193,11 +1213,11 @@ export function Settings() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">身份证号</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">身份证号</label>
                   <input type="text" value={teacherForm.idCard || ''} onChange={e => setTeacherForm({...teacherForm, idCard: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">所属产业部</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">所属产业部</label>
                   {user?.role === 'USER' && user.departmentIds && user.departmentIds.length === 1 ? (
                     <input type="text" value={userDeptNames[0] || ''} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm disabled:bg-slate-50" disabled />
                   ) : (
@@ -1219,8 +1239,56 @@ export function Settings() {
                   )}
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">主要任教学科</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">主要任教学科</label>
                   <input type="text" value={teacherForm.primarySubject || ''} onChange={e => setTeacherForm({...teacherForm, primarySubject: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">聘用性质</label>
+                  <select 
+                    value={teacherForm.employmentType || ''} 
+                    onChange={e => {
+                      const val = e.target.value as any;
+                      setTeacherForm({
+                        ...teacherForm, 
+                        employmentType: val,
+                        defaultWeeklyHours: calculateDefaultWeeklyHours(val, teacherForm.positionType) !== '' 
+                          ? Number(calculateDefaultWeeklyHours(val, teacherForm.positionType)) 
+                          : teacherForm.defaultWeeklyHours
+                      });
+                    }} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">请选择聘用性质</option>
+                    <option value="在编">在编</option>
+                    <option value="外聘">外聘</option>
+                    <option value="兼职">兼职</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">岗位类型</label>
+                  <select 
+                    value={teacherForm.positionType || ''} 
+                    onChange={e => {
+                      const val = e.target.value as any;
+                      setTeacherForm({
+                        ...teacherForm, 
+                        positionType: val,
+                        defaultWeeklyHours: calculateDefaultWeeklyHours(teacherForm.employmentType, val) !== '' 
+                          ? Number(calculateDefaultWeeklyHours(teacherForm.employmentType, val)) 
+                          : teacherForm.defaultWeeklyHours
+                      });
+                    }} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">请选择岗位类型</option>
+                    <option value="专任教师">专任教师</option>
+                    <option value="教辅职员">教辅职员</option>
+                    <option value="兼课教师">兼课教师</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">默认周课时</label>
+                  <input type="number" value={teacherForm.defaultWeeklyHours !== undefined ? teacherForm.defaultWeeklyHours : ''} onChange={e => setTeacherForm({...teacherForm, defaultWeeklyHours: e.target.value ? Number(e.target.value) : undefined})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" />
                 </div>
                 <div className="flex gap-2 pt-2">
                   <button onClick={() => { setEditingTeacherId(null); setTeacherForm({}); }} className="flex-1 px-3 py-2 border border-slate-200 text-slate-600 rounded text-sm hover:bg-slate-50">取消</button>
@@ -1236,21 +1304,27 @@ export function Settings() {
                     gender: newTeacherGender as any,
                     idCard: newTeacherIdCard.trim(),
                     department: user?.role === 'USER' && user.departmentIds?.length === 1 ? (userDeptNames[0] || '') : newTeacherDepartment.trim(),
-                    primarySubject: newTeacherPrimarySubject.trim()
+                    primarySubject: newTeacherPrimarySubject.trim(),
+                    employmentType: newTeacherEmploymentType || undefined,
+                    positionType: newTeacherPositionType || undefined,
+                    defaultWeeklyHours: newTeacherDefaultWeeklyHours === '' ? undefined : newTeacherDefaultWeeklyHours
                   }); 
                   setNewTeacherName(''); 
                   setNewTeacherGender('');
                   setNewTeacherIdCard('');
                   setNewTeacherDepartment('');
                   setNewTeacherPrimarySubject('');
+                  setNewTeacherEmploymentType('');
+                  setNewTeacherPositionType('');
+                  setNewTeacherDefaultWeeklyHours('');
                 } 
               }} className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">姓名 *</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">姓名 *</label>
                   <input type="text" value={newTeacherName} onChange={(e) => setNewTeacherName(e.target.value)} placeholder="教师姓名" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" required />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">性别</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">性别</label>
                   <select value={newTeacherGender} onChange={(e) => setNewTeacherGender(e.target.value as any)} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm">
                     <option value="">选择性别</option>
                     <option value="男">男</option>
@@ -1258,11 +1332,11 @@ export function Settings() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">身份证号</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">身份证号</label>
                   <input type="text" value={newTeacherIdCard} onChange={(e) => setNewTeacherIdCard(e.target.value)} placeholder="输入身份证号" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">所属产业部</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">所属产业部</label>
                   {user?.role === 'USER' && user.departmentIds && user.departmentIds.length === 1 ? (
                     <input type="text" value={userDeptNames[0] || ''} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm disabled:bg-slate-50" disabled />
                   ) : (
@@ -1284,8 +1358,48 @@ export function Settings() {
                   )}
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">主要任教学科</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">主要任教学科</label>
                   <input type="text" value={newTeacherPrimarySubject} onChange={(e) => setNewTeacherPrimarySubject(e.target.value)} placeholder="例如：语文、电子" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">聘用性质</label>
+                  <select 
+                    value={newTeacherEmploymentType} 
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setNewTeacherEmploymentType(val);
+                      const defHours = calculateDefaultWeeklyHours(val, newTeacherPositionType);
+                      if (defHours !== '') setNewTeacherDefaultWeeklyHours(defHours as number);
+                    }} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm"
+                  >
+                    <option value="">请选择聘用性质</option>
+                    <option value="在编">在编</option>
+                    <option value="外聘">外聘</option>
+                    <option value="兼职">兼职</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">岗位类型</label>
+                  <select 
+                    value={newTeacherPositionType} 
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setNewTeacherPositionType(val);
+                      const defHours = calculateDefaultWeeklyHours(newTeacherEmploymentType, val);
+                      if (defHours !== '') setNewTeacherDefaultWeeklyHours(defHours as number);
+                    }} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm"
+                  >
+                    <option value="">请选择岗位类型</option>
+                    <option value="专任教师">专任教师</option>
+                    <option value="教辅职员">教辅职员</option>
+                    <option value="兼课教师">兼课教师</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">默认周课时</label>
+                  <input type="number" value={newTeacherDefaultWeeklyHours} onChange={(e) => setNewTeacherDefaultWeeklyHours(e.target.value ? Number(e.target.value) : '')} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" />
                 </div>
                 <button type="submit" disabled={!newTeacherName.trim()} className="w-full bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-1 font-medium mt-2"><Plus className="w-4 h-4" /> 添加教师</button>
               </form>
@@ -1394,7 +1508,7 @@ export function Settings() {
             {/* Table layout */}
             <div className="flex-1 overflow-auto max-h-[500px]">
               <table className="w-full text-sm text-left text-slate-600 border-collapse">
-                <thead className="text-xs text-slate-700 bg-slate-50 sticky top-0 border-b border-slate-100">
+                <thead className="text-sm text-slate-700 bg-slate-50 sticky top-0 border-b border-slate-100">
                   <tr>
                     <th className="p-3 w-10">
                       <input type="checkbox" checked={filteredTeachers.length > 0 && selectedTeachers.size === filteredTeachers.length} onChange={e => {
@@ -1427,6 +1541,8 @@ export function Settings() {
                     }}>
                       <div className="flex items-center gap-1">任教学科 {teacherSortField === 'primarySubject' && <span className="text-indigo-600">{teacherSortOrder === 'asc' ? '↑' : '↓'}</span>}</div>
                     </th>
+                    <th className="p-3">属性</th>
+                    <th className="p-3 text-right">课时</th>
                     <th className="p-3 text-right">操作</th>
                   </tr>
                 </thead>
@@ -1453,6 +1569,13 @@ export function Settings() {
                         <td className="p-3">
                           <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200 text-xs">{t.primarySubject || '-'}</span>
                         </td>
+                        <td className="p-3">
+                          <div className="flex flex-wrap gap-1">
+                            {t.employmentType && <span className="text-xs px-1.5 py-0.5 bg-purple-50 text-purple-700 border border-purple-100 rounded">{t.employmentType}</span>}
+                            {t.positionType && <span className="text-xs px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded">{t.positionType}</span>}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right font-mono text-slate-600 text-sm">{t.defaultWeeklyHours !== undefined ? t.defaultWeeklyHours : '-'}</td>
                         <td className="p-3 text-right">
                           <div className="flex justify-end gap-2">
                             {canEdit && (
@@ -1468,7 +1591,7 @@ export function Settings() {
                   })}
                   {filteredTeachers.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-slate-400">暂无符合条件的教师数据</td>
+                      <td colSpan={9} className="p-8 text-center text-slate-400">暂无符合条件的教师数据</td>
                     </tr>
                   )}
                 </tbody>
@@ -1487,7 +1610,7 @@ export function Settings() {
                 <BookOpen className="w-5 h-5 text-indigo-600" />
                 {editingSubjectId ? '编辑科目' : '添加科目'}
               </h3>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-sm text-slate-500 mt-1">
                 {editingSubjectId ? '修改当前学科/科目的属性关联' : '向系统录入一门新的课程科目'}
               </p>
             </div>
@@ -1495,11 +1618,11 @@ export function Settings() {
             {editingSubjectId ? (
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">科目名称 *</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">科目名称 *</label>
                   <input type="text" value={subjectForm.name || ''} onChange={e => setSubjectForm({...subjectForm, name: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" required />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">科目类别</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">科目类别</label>
                   <select value={subjectForm.type || '中职公共基础课'} onChange={e => setSubjectForm({...subjectForm, type: e.target.value as SubjectType, departmentId: '', majorId: ''})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500">
                     <option value="中职公共基础课">中职公共基础课</option>
                     <option value="中职专业课">中职专业课</option>
@@ -1510,14 +1633,14 @@ export function Settings() {
                 {subjectForm.type === '中职专业课' && (
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 block mb-1">关联产业部</label>
+                      <label className="text-sm font-semibold text-slate-600 block mb-1">关联产业部</label>
                       <select value={subjectForm.departmentId || ''} onChange={e => setSubjectForm({...subjectForm, departmentId: e.target.value, majorId: ''})} className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs">
                         <option value="">选择产业部</option>
                         {state.departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 block mb-1">关联专业</label>
+                      <label className="text-sm font-semibold text-slate-600 block mb-1">关联专业</label>
                       <select value={subjectForm.majorId || ''} onChange={e => setSubjectForm({...subjectForm, majorId: e.target.value})} className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs">
                         <option value="">选择专业</option>
                         {state.majors.filter(m => m.departmentId === subjectForm.departmentId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -1546,11 +1669,11 @@ export function Settings() {
                 } 
               }} className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">科目名称 *</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">科目名称 *</label>
                   <input type="text" value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)} placeholder="例如：电子技术基础" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" required />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">科目类别</label>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">科目类别</label>
                   <select value={newSubjectType} onChange={(e) => setNewSubjectType(e.target.value as SubjectType)} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm">
                     <option value="中职公共基础课">中职公共基础课</option>
                     <option value="中职专业课">中职专业课</option>
@@ -1561,14 +1684,14 @@ export function Settings() {
                 {newSubjectType === '中职专业课' && (
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 block mb-1">关联产业部</label>
+                      <label className="text-sm font-semibold text-slate-600 block mb-1">关联产业部</label>
                       <select value={newSubjectDepartmentId} onChange={e => { setNewSubjectDepartmentId(e.target.value); setNewSubjectMajorId(''); }} className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs" required>
                         <option value="">选择产业部</option>
                         {state.departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 block mb-1">关联专业</label>
+                      <label className="text-sm font-semibold text-slate-600 block mb-1">关联专业</label>
                       <select value={newSubjectMajorId} onChange={e => setNewSubjectMajorId(e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs" required>
                         <option value="">选择专业</option>
                         {state.majors.filter(m => m.departmentId === newSubjectDepartmentId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -1686,7 +1809,7 @@ export function Settings() {
             {/* Table layout */}
             <div className="flex-1 overflow-auto max-h-[500px]">
               <table className="w-full text-sm text-left text-slate-600 border-collapse">
-                <thead className="text-xs text-slate-700 bg-slate-50 sticky top-0 border-b border-slate-100">
+                <thead className="text-sm text-slate-700 bg-slate-50 sticky top-0 border-b border-slate-100">
                   <tr>
                     <th className="p-3 w-10">
                       <input type="checkbox" checked={filteredSubjects.length > 0 && selectedSubjects.size === filteredSubjects.length} onChange={e => {
@@ -1829,7 +1952,7 @@ export function Settings() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <h4 className="text-sm font-bold text-slate-700">数据导出 (全量备份)</h4>
-              <p className="text-xs text-slate-500">将当前系统所有数据（组织、教师、科目、排课、存档等）导出为 JSON 文件，用于迁移或更新前的安全备份。</p>
+              <p className="text-sm text-slate-500">将当前系统所有数据（组织、教师、科目、排课、存档等）导出为 JSON 文件，用于迁移或更新前的安全备份。</p>
               <button 
                 onClick={handleExportSystemData}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-sm font-medium"
@@ -1839,7 +1962,7 @@ export function Settings() {
             </div>
             <div className="space-y-2">
               <h4 className="text-sm font-bold text-slate-700">数据导入 (全量恢复)</h4>
-              <p className="text-xs text-slate-500">从备份文件恢复系统数据。注意：这将覆盖当前系统中的所有数据，且不可撤销。</p>
+              <p className="text-sm text-slate-500">从备份文件恢复系统数据。注意：这将覆盖当前系统中的所有数据，且不可撤销。</p>
               <div className="flex gap-2">
                 <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors text-sm font-medium">
                   <Upload className="w-4 h-4" /> 选择备份文件并导入

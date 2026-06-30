@@ -437,7 +437,8 @@ export function TeacherWorkload() {
   // 3. DATA PREPARATION: Tab 2 (Majors & Departments Details)
   // -------------------------------------------------------------------------
   const deptSummaryList = useMemo(() => {
-    return state.departments.map((dept) => {
+    const teachingDepartments = state.departments.filter(d => !['公共基础学院', '行政干部', '职员与工勤'].includes(d.name));
+    return teachingDepartments.map((dept) => {
       const deptMajors = state.majors.filter((m) => m.departmentId === dept.id);
       const deptMajorIds = new Set(deptMajors.map((m) => m.id));
       const deptClasses = state.classes.filter((c) => {
@@ -923,12 +924,12 @@ export function TeacherWorkload() {
               </span>
               <div>
                 <h4 className="text-sm font-bold text-slate-700">看板数据筛选</h4>
-                <p className="text-xs text-slate-400">选择维度进行穿透，支持各图表及指标联动</p>
+                <p className="text-sm text-slate-400">选择维度进行穿透，支持各图表及指标联动</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
               <div className="flex flex-col gap-1 w-full sm:w-40">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">年级维度</span>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">年级维度</span>
                 <select
                   value={chartFilters.gradeId}
                   onChange={(e) =>
@@ -949,7 +950,7 @@ export function TeacherWorkload() {
               </div>
 
               <div className="flex flex-col gap-1 w-full sm:w-40">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">产业部维度</span>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">产业部维度</span>
                 <select
                   value={chartFilters.deptId}
                   onChange={(e) =>
@@ -962,7 +963,7 @@ export function TeacherWorkload() {
                   className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-700 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm transition-all"
                 >
                   <option value="all">所有产业部</option>
-                  {state.departments.map((d) => (
+                  {state.departments.filter(d => !['公共基础学院', '行政干部', '职员与工勤'].includes(d.name)).map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name}
                     </option>
@@ -971,7 +972,7 @@ export function TeacherWorkload() {
               </div>
 
               <div className="flex flex-col gap-1 w-full sm:w-48">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">专业维度</span>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">专业维度</span>
                 <select
                   value={chartFilters.majorId}
                   onChange={(e) =>
@@ -1026,7 +1027,7 @@ export function TeacherWorkload() {
                   </span>
                   <span className="text-sm text-slate-500">个</span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
+                <p className="text-sm text-slate-400 mt-1">
                   总班级: {classMetrics.total} | 毕业: {classMetrics.graduated}
                 </p>
               </div>
@@ -1048,8 +1049,8 @@ export function TeacherWorkload() {
                   </span>
                   <span className="text-sm text-slate-500">个</span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  涵盖专业部: {state.departments.length} 个
+                <p className="text-sm text-slate-400 mt-1">
+                  涵盖专业部: {state.departments.filter(d => !['公共基础学院', '行政干部', '职员与工勤'].includes(d.name)).length} 个
                 </p>
               </div>
             </div>
@@ -1070,7 +1071,7 @@ export function TeacherWorkload() {
                   </span>
                   <span className="text-sm text-slate-500">人</span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
+                <p className="text-sm text-slate-400 mt-1">
                   均班:{" "}
                   {classMetrics.active > 0
                     ? Math.round(
@@ -1098,7 +1099,7 @@ export function TeacherWorkload() {
                   </span>
                   <span className="text-sm text-slate-500">人</span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
+                <p className="text-sm text-slate-400 mt-1">
                   师生比 1 :{" "}
                   {filteredTeachersCount > 0
                     ? (
@@ -1125,7 +1126,7 @@ export function TeacherWorkload() {
                   </span>
                   <span className="text-sm text-slate-500">节/周</span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
+                <p className="text-sm text-slate-400 mt-1">
                   活跃学科: {state.subjects.length} 门
                 </p>
               </div>
@@ -1273,7 +1274,7 @@ export function TeacherWorkload() {
                 </div>
                 <div className="space-y-3">
                   {classTypeBreakdown.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic">
+                    <p className="text-sm text-slate-400 italic">
                       暂无类型分布
                     </p>
                   ) : (
@@ -1391,14 +1392,14 @@ export function TeacherWorkload() {
                         <span className="font-bold text-sm text-indigo-600 block">
                           {dept.studentCount}人
                         </span>
-                        <span className="text-[10px] text-slate-400 block">
+                        <span className="text-xs text-slate-400 block">
                           周课时 {dept.totalHours} 节
                         </span>
                       </div>
                     </div>
                   ))}
                   {deptSummaryList.length === 0 && (
-                    <p className="text-xs text-slate-400 italic py-4 text-center">
+                    <p className="text-sm text-slate-400 italic py-4 text-center">
                       暂无专业部数据
                     </p>
                   )}
@@ -1427,7 +1428,7 @@ export function TeacherWorkload() {
                 专业部数量
               </span>
               <span className="text-2xl font-extrabold text-slate-800 mt-1 block">
-                {state.departments.length} 个
+                {state.departments.filter(d => !['公共基础学院', '行政干部', '职员与工勤'].includes(d.name)).length} 个
               </span>
             </div>
             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
@@ -1466,7 +1467,7 @@ export function TeacherWorkload() {
               <h3 className="font-bold text-slate-800">
                 全校专业分布与教学指标对照表
               </h3>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-sm text-slate-500 mt-1">
                 展示专业对应的招生指标、班级数、在校生人数及平均班额指标
               </p>
             </div>
@@ -1540,7 +1541,7 @@ export function TeacherWorkload() {
                               </span>
                               {achievementRate !== null && (
                                 <span
-                                  className={`text-[10px] font-bold ${achievementRate >= 100 ? "text-emerald-600" : "text-amber-600"}`}
+                                  className={`text-xs font-bold ${achievementRate >= 100 ? "text-emerald-600" : "text-amber-600"}`}
                                 >
                                   达成率 {achievementRate}%
                                 </span>
@@ -1602,7 +1603,7 @@ export function TeacherWorkload() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">
+                <label className="text-sm font-semibold text-slate-500">
                   专业方向
                 </label>
                 <select
@@ -1622,7 +1623,7 @@ export function TeacherWorkload() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">
+                <label className="text-sm font-semibold text-slate-500">
                   年级
                 </label>
                 <select
@@ -1640,7 +1641,7 @@ export function TeacherWorkload() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">
+                <label className="text-sm font-semibold text-slate-500">
                   在校状态 (课时管理)
                 </label>
                 <select
@@ -1658,7 +1659,7 @@ export function TeacherWorkload() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">
+                <label className="text-sm font-semibold text-slate-500">
                   班级类型
                 </label>
                 <select
@@ -1684,7 +1685,7 @@ export function TeacherWorkload() {
                 <h3 className="font-bold text-slate-800">
                   全校班级状态与课时覆盖明细
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-sm text-slate-500 mt-1">
                   当前已筛选出 {filteredClassesList.length} 个班级，包含{" "}
                   {filteredClassesList.reduce(
                     (sum, c) => sum + (c.studentCount || 0),
@@ -1738,7 +1739,7 @@ export function TeacherWorkload() {
                             <span className="font-medium text-slate-700 text-xs">
                               {cls.majorName}
                             </span>
-                            <span className="text-[11px] text-slate-400 mt-0.5">
+                            <span className="text-xs text-slate-400 mt-0.5">
                               {cls.deptName} • {cls.gradeName}
                             </span>
                           </div>
@@ -1773,7 +1774,7 @@ export function TeacherWorkload() {
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span
-                            className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-bold border ${
+                            className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-bold border ${
                               cls.status === "外出实习"
                                 ? "bg-orange-50 text-orange-700 border-orange-200"
                                 : cls.status === "实习返校"
@@ -1803,7 +1804,7 @@ export function TeacherWorkload() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           {isDisabled ? (
-                            <span className="text-[11px] font-bold text-slate-400 italic">
+                            <span className="text-xs font-bold text-slate-400 italic">
                               不排课 (清零)
                             </span>
                           ) : cls.totalHours > 0 ? (
@@ -1811,7 +1812,7 @@ export function TeacherWorkload() {
                               <span className="font-extrabold text-indigo-600">
                                 {cls.totalHours} 节/周
                               </span>
-                              <span className="text-[10px] text-slate-400">
+                              <span className="text-xs text-slate-400">
                                 覆盖 {cls.subjectCount} 门课程
                               </span>
                             </div>
@@ -1886,7 +1887,7 @@ export function TeacherWorkload() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">
+                <label className="text-sm font-semibold text-slate-500">
                   产业部
                 </label>
                 <select
@@ -1904,7 +1905,7 @@ export function TeacherWorkload() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">
+                <label className="text-sm font-semibold text-slate-500">
                   主教科型
                 </label>
                 <select
@@ -1922,7 +1923,7 @@ export function TeacherWorkload() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">
+                <label className="text-sm font-semibold text-slate-500">
                   性别
                 </label>
                 <select
@@ -1938,7 +1939,7 @@ export function TeacherWorkload() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">
+                <label className="text-sm font-semibold text-slate-500">
                   年龄区间
                 </label>
                 <select
@@ -2158,16 +2159,16 @@ export function TeacherWorkload() {
                                 </span>
                               )}
                             </span>
-                            <span className="text-[11px] text-slate-400 font-mono mt-0.5">
+                            <span className="text-xs text-slate-400 font-mono mt-0.5">
                               {calculateAge(teacher.idCard)
                                 ? `${calculateAge(teacher.idCard)}岁`
                                 : "年龄未知"}
                             </span>
                             <div className="text-xs text-slate-500 mt-1.5 flex flex-col gap-0.5">
-                              <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] w-max font-semibold">
+                              <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-xs w-max font-semibold">
                                 {teacher.department || "未指派部门"}
                               </span>
-                              <span className="text-[10px] text-slate-400 mt-1">
+                              <span className="text-xs text-slate-400 mt-1">
                                 主教科型: {teacher.primarySubject || "无"}
                               </span>
                             </div>
@@ -2187,7 +2188,7 @@ export function TeacherWorkload() {
                                   key={idx}
                                   className="bg-slate-50 rounded-lg p-3 border border-slate-100"
                                 >
-                                  <div className="text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-wider">
+                                  <div className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">
                                     {deptName}
                                   </div>
                                   <div className="flex flex-wrap gap-2">

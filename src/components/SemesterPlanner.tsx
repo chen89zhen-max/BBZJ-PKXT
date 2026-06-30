@@ -476,7 +476,8 @@ export function SemesterPlanner() {
 
   // 2. Department Forecast Calculations
   const deptForecasts = useMemo(() => {
-    return departments.map((dept) => {
+    const teachingDepartments = departments.filter(d => !['公共基础学院', '行政干部', '职员与工勤'].includes(d.name));
+    return teachingDepartments.map((dept) => {
       const deptMajors = majors.filter((m) => m.departmentId === dept.id);
       const majorIds = new Set(deptMajors.map((m) => m.id));
       const deptClasses = classes.filter(
@@ -515,6 +516,7 @@ export function SemesterPlanner() {
 
       const teachersNeeded = totalWeeklyHours / teacherStandardHours;
       const actualTeachers = teachers.filter((t) => t.department === dept.name);
+      const actualCapacityEquivalent = actualTeachers.reduce((sum, t) => sum + (t.defaultWeeklyHours !== undefined ? t.defaultWeeklyHours : teacherStandardHours) / teacherStandardHours, 0);
 
       return {
         id: dept.id,
@@ -526,8 +528,8 @@ export function SemesterPlanner() {
         graduatedCount,
         totalWeeklyHours,
         teachersNeeded: parseFloat(teachersNeeded.toFixed(1)),
-        actualTeachersCount: actualTeachers.length,
-        gap: parseFloat((teachersNeeded - actualTeachers.length).toFixed(1)),
+        actualTeachersCount: parseFloat(actualCapacityEquivalent.toFixed(1)),
+        gap: parseFloat((teachersNeeded - actualCapacityEquivalent).toFixed(1)),
       };
     });
   }, [
@@ -588,6 +590,7 @@ export function SemesterPlanner() {
       );
 
       const teachersNeeded = totalWeeklyHours / teacherStandardHours;
+      const actualCapacityEquivalent = majorTeachers.reduce((sum, t) => sum + (t.defaultWeeklyHours !== undefined ? t.defaultWeeklyHours : teacherStandardHours) / teacherStandardHours, 0);
 
       return {
         id: m.id,
@@ -600,8 +603,8 @@ export function SemesterPlanner() {
         graduatedCount,
         totalWeeklyHours,
         teachersNeeded: parseFloat(teachersNeeded.toFixed(1)),
-        actualTeachersCount: majorTeachers.length,
-        gap: parseFloat((teachersNeeded - majorTeachers.length).toFixed(1)),
+        actualTeachersCount: parseFloat(actualCapacityEquivalent.toFixed(1)),
+        gap: parseFloat((teachersNeeded - actualCapacityEquivalent).toFixed(1)),
       };
     });
   }, [
@@ -647,6 +650,8 @@ export function SemesterPlanner() {
           (t) => t.primarySubject === subName,
         );
         const teachersNeeded = totalWeeklyHours / teacherStandardHours;
+        const actualCapacityEquivalent = subTeachers.reduce((sum, t) => sum + (t.defaultWeeklyHours !== undefined ? t.defaultWeeklyHours : teacherStandardHours) / teacherStandardHours, 0);
+
         const sampleSubject = matchingSubjects[0];
         const dept = sampleSubject?.departmentId
           ? departments.find((d) => d.id === sampleSubject.departmentId)
@@ -659,8 +664,8 @@ export function SemesterPlanner() {
           deptName: dept?.name || "基础课",
           totalWeeklyHours,
           teachersNeeded: parseFloat(teachersNeeded.toFixed(1)),
-          actualTeachersCount: subTeachers.length,
-          gap: parseFloat((teachersNeeded - subTeachers.length).toFixed(1)),
+          actualTeachersCount: parseFloat(actualCapacityEquivalent.toFixed(1)),
+          gap: parseFloat((teachersNeeded - actualCapacityEquivalent).toFixed(1)),
         };
       })
       .sort((a, b) => {
@@ -794,24 +799,24 @@ export function SemesterPlanner() {
   // Calculated totals
   const totals = useMemo(() => {
     let requiredTeachers = 0;
-    let actualTeachers = 0;
     let totalClasses = 0;
     let totalPresetClasses = classes.filter((c) => c.isPreset).length;
 
     deptForecasts.forEach((df) => {
       requiredTeachers += df.teachersNeeded;
-      actualTeachers += df.actualTeachersCount;
       totalClasses += df.totalClasses;
     });
 
+    let actualTeachers = teachers.reduce((sum, t) => sum + (t.defaultWeeklyHours !== undefined ? t.defaultWeeklyHours : teacherStandardHours) / teacherStandardHours, 0);
+
     return {
       requiredTeachers: parseFloat(requiredTeachers.toFixed(1)),
-      actualTeachers,
+      actualTeachers: parseFloat(actualTeachers.toFixed(1)),
       totalClasses,
       totalPresetClasses,
       gap: parseFloat((requiredTeachers - actualTeachers).toFixed(1)),
     };
-  }, [deptForecasts, classes]);
+  }, [deptForecasts, classes, teachers, teacherStandardHours]);
 
   return (
     <div className="space-y-6">
@@ -887,7 +892,7 @@ export function SemesterPlanner() {
                   <h4 className="text-sm font-bold text-slate-800">
                     在校班级建制与属性管理
                   </h4>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-sm text-slate-500">
                     直接在此模块添加、编辑、删除或通过 Excel
                     批量导入全校班级，确保排课与规划一体化
                   </p>
@@ -1022,7 +1027,7 @@ export function SemesterPlanner() {
                         {/* Department-level filters toolbar */}
                         <div className="px-6 py-3 bg-slate-50/40 border-b border-slate-150 grid grid-cols-2 md:grid-cols-4 gap-4">
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">
                               筛选年级
                             </label>
                             <select
@@ -1045,7 +1050,7 @@ export function SemesterPlanner() {
                             </select>
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">
                               筛选专业
                             </label>
                             <select
@@ -1070,7 +1075,7 @@ export function SemesterPlanner() {
                             </select>
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">
                               筛选班级类型
                             </label>
                             <select
@@ -1093,7 +1098,7 @@ export function SemesterPlanner() {
                             </select>
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">
                               筛选当前状态
                             </label>
                             <select
@@ -1204,7 +1209,7 @@ export function SemesterPlanner() {
                                         <div className="flex items-center gap-2">
                                           {(grade?.name || "") + cls.name}
                                           {cls.isPreset && (
-                                            <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded border border-amber-200">
+                                            <span className="bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded border border-amber-200">
                                               预设草稿
                                             </span>
                                           )}
@@ -1401,7 +1406,7 @@ export function SemesterPlanner() {
                               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto shrink-0">
                                 <div className="grid grid-cols-2 sm:flex items-center gap-2">
                                   <div className="flex flex-col">
-                                    <label className="text-[10px] text-slate-400 font-semibold">
+                                    <label className="text-sm text-slate-400 font-semibold">
                                       招生数
                                     </label>
                                     <input
@@ -1419,7 +1424,7 @@ export function SemesterPlanner() {
                                     />
                                   </div>
                                   <div className="flex flex-col">
-                                    <label className="text-[10px] text-slate-400 font-semibold">
+                                    <label className="text-sm text-slate-400 font-semibold">
                                       班额
                                     </label>
                                     <input
@@ -1491,7 +1496,7 @@ export function SemesterPlanner() {
                       节/周
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-sm text-slate-400 mt-1">
                     正常在校班级、实习返校班级默认的每周教学总课时参考值。
                   </p>
                 </div>
@@ -1512,7 +1517,7 @@ export function SemesterPlanner() {
                       节/周
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-sm text-slate-400 mt-1">
                     全班离校在外实习期间，安排给指导教师的周指导/联络课时。
                   </p>
                 </div>
@@ -1533,7 +1538,7 @@ export function SemesterPlanner() {
                       节/周
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-sm text-slate-400 mt-1">
                     每位全职教师每周的合理标准代课课时。用于测算所需师资。
                   </p>
                 </div>
@@ -1547,11 +1552,11 @@ export function SemesterPlanner() {
                       <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
                       各类型班级的周教学标准课时设置 (分年级精细化)
                     </h4>
-                    <p className="text-[11px] text-slate-400 mt-1">
+                    <p className="text-sm text-slate-400 mt-1">
                       支持为不同班级类型、针对不同年级进行差异化课时设定，精准满足教学规划需求
                     </p>
                   </div>
-                  <span className="text-[11px] text-indigo-600 bg-indigo-50/60 px-2.5 py-1 rounded-full font-medium shrink-0 self-start sm:self-center">
+                  <span className="text-xs text-indigo-600 bg-indigo-50/60 px-2.5 py-1 rounded-full font-medium shrink-0 self-start sm:self-center">
                     ✨ 实时联动内核与师资缺口测算
                   </span>
                 </div>
@@ -1567,7 +1572,7 @@ export function SemesterPlanner() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                       {/* Left Sidebar: Class Category List */}
                       <div className="md:col-span-1 bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm flex flex-col gap-2">
-                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1 mb-1">
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1 mb-1">
                           选择班级类型
                         </div>
                         <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
@@ -1589,12 +1594,12 @@ export function SemesterPlanner() {
                                 <div className="flex flex-col min-w-0 pr-2">
                                   <span className="text-xs truncate">{cat.name}</span>
                                   {gradeOverridesCount > 0 && (
-                                    <span className={`text-[10px] mt-0.5 font-medium ${isSelected ? "text-indigo-600" : "text-slate-400"}`}>
+                                    <span className={`text-xs mt-0.5 font-medium ${isSelected ? "text-indigo-600" : "text-slate-400"}`}>
                                       {gradeOverridesCount} 个年级已个性化
                                     </span>
                                   )}
                                 </div>
-                                <div className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold ${
+                                <div className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${
                                   isSelected ? "bg-indigo-200/60 text-indigo-800" : "bg-slate-200/60 text-slate-600"
                                 }`}>
                                   {curVal}节
@@ -1612,13 +1617,13 @@ export function SemesterPlanner() {
                             {/* Global Default Setting */}
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-indigo-50/30 border border-indigo-100/50 p-4 rounded-xl gap-3">
                               <div>
-                                <span className="text-[11px] text-indigo-700 font-bold uppercase tracking-wider block">
+                                <span className="text-xs text-indigo-700 font-bold uppercase tracking-wider block">
                                   全局标准配置
                                 </span>
                                 <h5 className="text-sm font-extrabold text-slate-800 mt-0.5">
                                   {activeCategory.name} 统一默认周课时
                                 </h5>
-                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                <p className="text-sm text-slate-400 mt-0.5">
                                   此项为该类型的全局基准课时，未单独设置年级的班级将自动沿用此数值。
                                 </p>
                               </div>
@@ -1641,10 +1646,10 @@ export function SemesterPlanner() {
                             {/* Grade Overrides Setting */}
                             <div>
                               <div className="flex items-center justify-between mb-2.5 px-1">
-                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                                   按年级独立精细化调整
                                 </span>
-                                <span className="text-[10px] text-slate-400">
+                                <span className="text-xs text-slate-400">
                                   (留空或不填即自动继承全局标准)
                                 </span>
                               </div>
@@ -1666,17 +1671,41 @@ export function SemesterPlanner() {
                                       }`}
                                     >
                                       <div className="flex flex-col">
-                                        <span className="text-xs font-bold text-slate-700">
-                                          {grade.name}
-                                        </span>
-                                        <span className="text-[10px] text-slate-400 mt-0.5">
-                                          {hasOverride ? "🟢 独立配置" : `⚪ 继承: ${globalDefaultValue}节`}
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-bold text-slate-700">
+                                            {grade.name}
+                                          </span>
+                                          <label className="flex items-center gap-1 cursor-pointer" title={hasOverride ? "点击取消独立配置，恢复继承全局" : "点击开启独立配置"}>
+                                            <input 
+                                              type="checkbox" 
+                                              className="hidden" 
+                                              checked={hasOverride} 
+                                              onChange={(e) => {
+                                                if (e.target.checked) {
+                                                  updateClassCategoryGradeHours(activeCategory.id, grade.id, globalDefaultValue);
+                                                } else {
+                                                  updateClassCategoryGradeHours(activeCategory.id, grade.id, undefined);
+                                                }
+                                              }} 
+                                            />
+                                            <div className={`relative inline-flex h-3.5 w-6 items-center rounded-full transition-colors ${hasOverride ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+                                              <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white transition-transform ${hasOverride ? 'translate-x-3' : 'translate-x-0.5'}`} />
+                                            </div>
+                                            <span className={`text-xs ${hasOverride ? "text-indigo-600 font-medium" : "text-slate-400"}`}>
+                                              独立配置
+                                            </span>
+                                          </label>
+                                        </div>
+                                        <span className="text-xs text-slate-400 mt-0.5">
+                                          {hasOverride ? "🟢 独立配置" : `⚪ 继承全局: ${globalDefaultValue}节`}
                                         </span>
                                       </div>
                                       <div className="flex items-center gap-1.5 shrink-0">
                                         <input
                                           type="number"
-                                          value={gradeValue}
+                                          disabled={!hasOverride}
+                                          value={hasOverride ? gradeValue : ""}
+                                          placeholder={`${globalDefaultValue}`}
                                           onChange={(e) =>
                                             updateClassCategoryGradeHours(
                                               activeCategory.id,
@@ -1687,10 +1716,10 @@ export function SemesterPlanner() {
                                           className={`w-12 text-center border rounded px-1.5 py-1 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
                                             hasOverride
                                               ? "bg-white border-indigo-300 text-indigo-700"
-                                              : "bg-slate-50 border-slate-200 text-slate-600 focus:bg-white"
+                                              : "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
                                           }`}
                                         />
-                                        <span className="text-[11px] text-slate-400 font-medium">节</span>
+                                        <span className="text-xs text-slate-400 font-medium">节</span>
                                       </div>
                                     </div>
                                   );
@@ -1813,7 +1842,7 @@ export function SemesterPlanner() {
                   <h4 className="text-sm font-bold text-slate-800">
                     多维度师资缺口精准测算
                   </h4>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-sm text-slate-500">
                     {forecastView === "dept" &&
                       "按科室/专业部汇总全校各大板块的师资和课时需求"}
                     {forecastView === "major" &&
@@ -1889,7 +1918,7 @@ export function SemesterPlanner() {
                         <p className="text-base font-bold text-slate-800 mt-0.5">
                           {df.totalClasses} 个班
                         </p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
+                        <p className="text-sm text-slate-400 mt-0.5">
                           (在校 {df.onCampusCount} / 实习 {df.internshipCount} /
                           返校 {df.returnedCount})
                         </p>
@@ -1918,7 +1947,7 @@ export function SemesterPlanner() {
 
                     {/* Visual ratio bar */}
                     <div className="space-y-1 pt-2">
-                      <div className="flex justify-between text-[10px] text-slate-400 font-bold">
+                      <div className="flex justify-between text-xs text-slate-400 font-bold">
                         <span>教师配比率</span>
                         <span>
                           {df.teachersNeeded > 0
@@ -1963,7 +1992,7 @@ export function SemesterPlanner() {
                           <GraduationCap className="w-4 h-4 text-indigo-600" />
                           {mf.name}
                         </h4>
-                        <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-semibold mt-1 inline-block">
+                        <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-semibold mt-1 inline-block">
                           {mf.deptName}
                         </span>
                       </div>
@@ -1986,7 +2015,7 @@ export function SemesterPlanner() {
                         <p className="text-base font-bold text-slate-800 mt-0.5">
                           {mf.totalClasses} 个班
                         </p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
+                        <p className="text-sm text-slate-400 mt-0.5">
                           (在校 {mf.onCampusCount} / 实习 {mf.internshipCount} /
                           返校 {mf.returnedCount})
                         </p>
@@ -2017,7 +2046,7 @@ export function SemesterPlanner() {
 
                     {/* Visual ratio bar */}
                     <div className="space-y-1 pt-2">
-                      <div className="flex justify-between text-[10px] text-slate-400 font-bold">
+                      <div className="flex justify-between text-xs text-slate-400 font-bold">
                         <span>师资配置满足率</span>
                         <span>
                           {mf.teachersNeeded > 0
@@ -2055,14 +2084,14 @@ export function SemesterPlanner() {
                   <h4 className="font-bold text-slate-800 text-sm">
                     全校学科课时需求与教师资源精准测算表
                   </h4>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-sm text-slate-400 mt-1">
                     系统将提取当前学年教学大纲或排课明细内的所有学科已排总课时，对比登记了该主售学科（Primary
                     Subject）的专任教师，提供精准到学科维度的供需对比。
                   </p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-100 text-slate-600 font-bold text-xs uppercase">
+                    <thead className="bg-slate-100 text-slate-600 font-bold text-sm uppercase">
                       <tr>
                         <th
                           className="px-6 py-3 cursor-pointer hover:bg-slate-200"
@@ -2203,7 +2232,7 @@ export function SemesterPlanner() {
                           </td>
                           <td className="px-6 py-4">
                             <span
-                              className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${
                                 sf.type === "文化基础课"
                                   ? "bg-blue-50 text-blue-700 border border-blue-100"
                                   : "bg-indigo-50 text-indigo-700 border border-indigo-100"
@@ -2312,7 +2341,7 @@ export function SemesterPlanner() {
                   已毕业 (满3年)
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed pt-2">
+              <p className="text-sm text-slate-400 leading-relaxed pt-2">
                 例如，执行激活【2026级】升级后：
                 <br />• 所有的班级对应的{" "}
                 <span className="font-bold">

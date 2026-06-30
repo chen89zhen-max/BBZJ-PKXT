@@ -592,7 +592,7 @@ export function ClassroomManager() {
                   请先选择所属产业部
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {state.departments.map((d) => (
+                  {state.departments.filter(d => !['公共基础学院', '行政干部', '职员与工勤'].includes(d.name)).map((d) => (
                     <button
                       key={d.id}
                       onClick={() => setAssignDeptId(d.id)}
@@ -613,7 +613,7 @@ export function ClassroomManager() {
                 {assignDeptId === null ? (
                   <div className="col-span-full py-10 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl space-y-2">
                     <p className="text-sm text-slate-500 font-medium">💡 班级数量较多，请先在上方选择一个产业部</p>
-                    <p className="text-xs text-slate-400">系统将即时罗列该产业部下的所属班级，方便您精准选入</p>
+                    <p className="text-sm text-slate-400">系统将即时罗列该产业部下的所属班级，方便您精准选入</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -669,7 +669,7 @@ export function ClassroomManager() {
                             title={fullName}
                           >
                             <span className="font-bold text-sm truncate w-full">{fullName}</span>
-                            <span className={`text-[10px] ${assignClassModal.currentClassId === c.id ? "text-indigo-200" : "text-slate-400"}`}>
+                            <span className={`text-xs ${assignClassModal.currentClassId === c.id ? "text-indigo-200" : "text-slate-400"}`}>
                               学生人数: {c.studentCount || 0}人
                             </span>
                           </button>

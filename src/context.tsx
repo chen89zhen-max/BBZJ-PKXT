@@ -102,7 +102,7 @@ interface AppContextType {
   addClassCategory: (name: string) => void;
   deleteClassCategory: (id: string) => void;
   updateClassCategoryHours: (id: string, hours: number) => void;
-  updateClassCategoryGradeHours: (id: string, gradeId: string, hours: number) => void;
+  updateClassCategoryGradeHours: (id: string, gradeId: string, hours: number | undefined) => void;
 
   // Buildings & Classrooms
   addBuilding: (name: string) => void;
@@ -755,20 +755,24 @@ export const AppProvider: React.FC<{
       ),
     });
   };
-  const updateClassCategoryGradeHours = (id: string, gradeId: string, hours: number) => {
+  const updateClassCategoryGradeHours = (id: string, gradeId: string, hours: number | undefined) => {
     broadcastState({
       ...state,
-      classCategories: state.classCategories.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              gradeHours: {
-                ...(c.gradeHours || {}),
-                [gradeId]: hours,
-              },
-            }
-          : c,
-      ),
+      classCategories: state.classCategories.map((c) => {
+        if (c.id === id) {
+          const newGradeHours = { ...(c.gradeHours || {}) };
+          if (hours === undefined) {
+            delete newGradeHours[gradeId];
+          } else {
+            newGradeHours[gradeId] = hours;
+          }
+          return {
+            ...c,
+            gradeHours: newGradeHours,
+          };
+        }
+        return c;
+      }),
     });
   };
 

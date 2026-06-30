@@ -72,8 +72,9 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState('dept-1'); // Default to first dept if exists
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // Ensure activeTab is valid
-  const currentDept = state.departments.find(d => d.id === activeTab) || state.departments[0];
+  const nonSchedulingDepts = ['公共基础学院', '行政干部', '职员与工勤'];
+  // Ensure activeTab is valid and not a non-scheduling dept unless explicitly requested
+  const currentDept = state.departments.find(d => d.id === activeTab) || state.departments.filter(d => !nonSchedulingDepts.includes(d.name))[0];
 
   const handleLogout = async () => {
     await fetch('/api/logout', { method: 'POST' });
@@ -143,7 +144,7 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
           <div className="p-5 flex-1 overflow-y-auto min-w-[16rem]">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">专业部排课</h2>
             <nav className="space-y-1.5">
-              {state.departments.map((dept) => (
+              {state.departments.filter(d => !nonSchedulingDepts.includes(d.name)).map((dept) => (
                 canAccess(dept.id) && (
                   <button
                     key={dept.id}

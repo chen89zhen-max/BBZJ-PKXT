@@ -40,6 +40,9 @@ export interface Teacher {
   primarySubject?: string;
   gender?: '男' | '女';
   idCard?: string;
+  employmentType?: '在编' | '外聘' | '兼职';
+  positionType?: '专任教师' | '教辅职员' | '兼课教师';
+  defaultWeeklyHours?: number;
 }
 
 export type SubjectType = '中职公共基础课' | '中职专业课' | '综合高中文化课' | '综合高中技能课';
