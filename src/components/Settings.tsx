@@ -1210,10 +1210,10 @@ export function Settings() {
                       {user?.role === 'USER' ? (
                         userDeptNames.map(name => <option key={name} value={name}>{name}</option>)
                       ) : (
-                        state.departments.map(d => <option key={d.name} value={d.name}>{d.name}</option>)
-                      )}
-                      {teacherForm.department && !(user?.role === 'USER' ? userDeptNames : state.departments.map(d => d.name)).includes(teacherForm.department) && (
-                        <option value={teacherForm.department}>{teacherForm.department}</option>
+                        Array.from(new Set([
+                          ...state.departments.map(d => d.name),
+                          ...state.teachers.map(t => t.department).filter(Boolean)
+                        ])).map(d => <option key={d as string} value={d as string}>{d as string}</option>)
                       )}
                     </select>
                   )}
@@ -1275,7 +1275,10 @@ export function Settings() {
                       {user?.role === 'USER' ? (
                         userDeptNames.map(name => <option key={name} value={name}>{name}</option>)
                       ) : (
-                        state.departments.map(d => <option key={d.name} value={d.name}>{d.name}</option>)
+                        Array.from(new Set([
+                          ...state.departments.map(d => d.name),
+                          ...state.teachers.map(t => t.department).filter(Boolean)
+                        ])).map(d => <option key={d as string} value={d as string}>{d as string}</option>)
                       )}
                     </select>
                   )}
@@ -1324,11 +1327,11 @@ export function Settings() {
                 <span className="text-slate-400">快速过滤:</span>
                 <select value={teacherDeptFilter} onChange={e => setTeacherDeptFilter(e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white">
                   <option value="">全部产业部</option>
-                  {Array.from(new Set(state.teachers.map(t => t.department).filter(Boolean))).map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                  {state.departments.map(d => (
-                    <option key={d.id} value={d.name}>{d.name}</option>
+                  {Array.from(new Set([
+                    ...state.departments.map(d => d.name),
+                    ...state.teachers.map(t => t.department).filter(Boolean)
+                  ])).map(d => (
+                    <option key={d as string} value={d as string}>{d as string}</option>
                   ))}
                 </select>
 
