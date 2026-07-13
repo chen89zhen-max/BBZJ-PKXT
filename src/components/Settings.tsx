@@ -595,6 +595,7 @@ export function Settings() {
       '编号': s.code || '',
       '名称': s.name,
       '类型': s.type,
+      '学科大类': s.subjectGroup || '',
       '所属产业部': s.departmentId ? (state.departments.find(d => d.id === s.departmentId)?.name || '') : '',
       '所属专业': s.majorId ? (state.majors.find(m => m.id === s.majorId)?.name || '') : ''
     }));
@@ -702,6 +703,7 @@ export function Settings() {
           code: row['编号'] || row['code'] || undefined,
           name: row['名称'] || row['name'] || '',
           type: type as SubjectType,
+          subjectGroup: row['学科大类'] || row['subjectGroup'] || '',
           departmentId,
           majorId
         };
@@ -722,6 +724,7 @@ export function Settings() {
         '编号': 'S001',
         '名称': '高等数学',
         '类型': '中职公共基础课',
+        '学科大类': '数学',
         '所属产业部': '',
         '所属专业': ''
       },
@@ -730,6 +733,7 @@ export function Settings() {
         '编号': 'S002',
         '名称': 'C语言程序设计',
         '类型': '中职专业课',
+        '学科大类': '信息技术',
         '所属产业部': '信息技术产业部',
         '所属专业': '计算机应用'
       }
@@ -2013,6 +2017,7 @@ export function Settings() {
                     <th className="p-3">编号</th>
                     <th className="p-3">科目名称</th>
                     <th className="p-3">类型</th>
+                    <th className="p-3">学科大类</th>
                     <th className="p-3">关联产业部</th>
                     <th className="p-3">关联专业</th>
                     <th className="p-3 text-center w-24">顺序</th>
@@ -2047,6 +2052,11 @@ export function Settings() {
                             {s.type}
                           </span>
                         </td>
+                        <td className="p-3">
+                          <span className="px-1.5 py-0.5 rounded text-xs bg-slate-100 text-slate-700 border border-slate-200">
+                            {s.subjectGroup || '-'}
+                          </span>
+                        </td>
                         <td className="p-3">{deptName || '-'}</td>
                         <td className="p-3">{majorName || '-'}</td>
                         <td className="p-3 text-center">
@@ -2074,7 +2084,7 @@ export function Settings() {
                   })}
                   {filteredSubjects.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-slate-400">暂无符合条件的科目数据</td>
+                      <td colSpan={8} className="p-8 text-center text-slate-400">暂无符合条件的科目数据</td>
                     </tr>
                   )}
                 </tbody>

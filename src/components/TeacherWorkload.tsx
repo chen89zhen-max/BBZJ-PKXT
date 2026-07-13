@@ -1859,10 +1859,10 @@ export function TeacherWorkload() {
               <div className="flex-1 min-h-0">
                 {classTypeData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={classTypeData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <BarChart data={classTypeData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
                       <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <YAxis dataKey="name" type="category" width={110} interval={0} tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
                       <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(value) => [`${value} 个班级`, '数量']} />
                       <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20}>
                         {classTypeData.map((entry, index) => (
