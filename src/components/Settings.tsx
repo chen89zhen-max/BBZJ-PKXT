@@ -168,6 +168,7 @@ export function Settings() {
   const [newTeacherDefaultWeeklyHours, setNewTeacherDefaultWeeklyHours] = useState<number | ''>('');
   
   const [newSubjectName, setNewSubjectName] = useState('');
+  const [newSubjectCode, setNewSubjectCode] = useState('');
   const [newSubjectType, setNewSubjectType] = useState<SubjectType>('中职公共基础课');
   const [newSubjectDepartmentId, setNewSubjectDepartmentId] = useState('');
   const [newSubjectMajorId, setNewSubjectMajorId] = useState('');
@@ -1112,7 +1113,6 @@ export function Settings() {
                               <select value={classForm.status || '正常在校'} onChange={e => setClassForm({...classForm, status: e.target.value as any})} className="w-full px-2 py-1 border rounded">
                                 <option value="正常在校">正常在校</option>
                                 <option value="外出实习">外出实习 (自动清空排课)</option>
-                                <option value="实习返校">实习返校</option>
                                 <option value="已毕业">已毕业 (自动清空排课)</option>
                                 <option value="合并解散">合并解散 (自动清空排课)</option>
                               </select>
@@ -1151,7 +1151,6 @@ export function Settings() {
                               <span className={`text-xs px-1.5 py-0.5 rounded font-semibold border ${
                                 (cls.status || '正常在校') === '正常在校' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                                 (cls.status || '正常在校') === '外出实习' ? 'bg-orange-50 text-orange-700 border-orange-100' :
-                                (cls.status || '正常在校') === '实习返校' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
                                 (cls.status || '正常在校') === '合并解散' ? 'bg-slate-100 text-slate-500 border-slate-200' :
                                 'bg-rose-50 text-rose-700 border-rose-100'
                               }`}>
@@ -1240,7 +1239,26 @@ export function Settings() {
                 </div>
                 <div>
                   <label className="text-sm font-semibold text-slate-600 block mb-1">主要任教学科</label>
-                  <input type="text" value={teacherForm.primarySubject || ''} onChange={e => setTeacherForm({...teacherForm, primarySubject: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" />
+                  <select value={teacherForm.primarySubject || ''} onChange={e => setTeacherForm({...teacherForm, primarySubject: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500">
+                    <option value="">请选择任教学科</option>
+                    {Array.from(new Set([
+                      ...state.subjects.map(s => s.name),
+                      ...(state.teachers.map(t => t.primarySubject).filter(Boolean) as string[])
+                    ]))
+                    .sort((a, b) => {
+                      const subjectA = state.subjects.find(s => s.name === a);
+                      const subjectB = state.subjects.find(s => s.name === b);
+                      const codeA = subjectA?.code || '';
+                      const codeB = subjectB?.code || '';
+                      if (codeA !== codeB) {
+                        return codeA.localeCompare(codeB, 'zh-CN');
+                      }
+                      return (a as string).localeCompare(b as string, 'zh-CN');
+                    })
+                    .map(name => (
+                      <option key={name as string} value={name as string}>{name as string}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-sm font-semibold text-slate-600 block mb-1">聘用性质</label>
@@ -1359,7 +1377,26 @@ export function Settings() {
                 </div>
                 <div>
                   <label className="text-sm font-semibold text-slate-600 block mb-1">主要任教学科</label>
-                  <input type="text" value={newTeacherPrimarySubject} onChange={(e) => setNewTeacherPrimarySubject(e.target.value)} placeholder="例如：语文、电子" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" />
+                  <select value={newTeacherPrimarySubject} onChange={(e) => setNewTeacherPrimarySubject(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm">
+                    <option value="">请选择任教学科</option>
+                    {Array.from(new Set([
+                      ...state.subjects.map(s => s.name),
+                      ...(state.teachers.map(t => t.primarySubject).filter(Boolean) as string[])
+                    ]))
+                    .sort((a, b) => {
+                      const subjectA = state.subjects.find(s => s.name === a);
+                      const subjectB = state.subjects.find(s => s.name === b);
+                      const codeA = subjectA?.code || '';
+                      const codeB = subjectB?.code || '';
+                      if (codeA !== codeB) {
+                        return codeA.localeCompare(codeB, 'zh-CN');
+                      }
+                      return (a as string).localeCompare(b as string, 'zh-CN');
+                    })
+                    .map(name => (
+                      <option key={name as string} value={name as string}>{name as string}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-sm font-semibold text-slate-600 block mb-1">聘用性质</label>
@@ -1451,9 +1488,20 @@ export function Settings() {
 
                 <select value={teacherSubjectFilter} onChange={e => setTeacherSubjectFilter(e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white">
                   <option value="">全部任教学科</option>
-                  {Array.from(new Set(state.teachers.map(t => t.primarySubject).filter(Boolean))).map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
+                  {Array.from(new Set(state.teachers.map(t => t.primarySubject).filter(Boolean)))
+                    .sort((a, b) => {
+                      const subjectA = state.subjects.find(s => s.name === a);
+                      const subjectB = state.subjects.find(s => s.name === b);
+                      const codeA = subjectA?.code || '';
+                      const codeB = subjectB?.code || '';
+                      if (codeA !== codeB) {
+                        return codeA.localeCompare(codeB, 'zh-CN');
+                      }
+                      return (a as string).localeCompare(b as string, 'zh-CN');
+                    })
+                    .map(s => (
+                      <option key={s as string} value={s as string}>{s as string}</option>
+                    ))}
                 </select>
 
                 <select value={teacherGenderFilter} onChange={e => setTeacherGenderFilter(e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white">
@@ -1483,7 +1531,26 @@ export function Settings() {
 
                     {/* Batch Change Subject */}
                     <div className="flex items-center gap-1">
-                      <input type="text" placeholder="统一学科" value={teacherBatchSubject} onChange={e => setTeacherBatchSubject(e.target.value)} className="border border-indigo-200 rounded px-1.5 py-1 bg-white w-24" />
+                      <select value={teacherBatchSubject} onChange={e => setTeacherBatchSubject(e.target.value)} className="border border-indigo-200 rounded px-1.5 py-1 bg-white w-28">
+                        <option value="">统一学科</option>
+                        {Array.from(new Set([
+                          ...state.subjects.map(s => s.name),
+                          ...(state.teachers.map(t => t.primarySubject).filter(Boolean) as string[])
+                        ]))
+                        .sort((a, b) => {
+                          const subjectA = state.subjects.find(s => s.name === a);
+                          const subjectB = state.subjects.find(s => s.name === b);
+                          const codeA = subjectA?.code || '';
+                          const codeB = subjectB?.code || '';
+                          if (codeA !== codeB) {
+                            return codeA.localeCompare(codeB, 'zh-CN');
+                          }
+                          return (a as string).localeCompare(b as string, 'zh-CN');
+                        })
+                        .map(name => (
+                          <option key={name as string} value={name as string}>{name as string}</option>
+                        ))}
+                      </select>
                       <button onClick={() => applyTeacherBatchSubject(teacherBatchSubject)} className="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700">应用</button>
                     </div>
 
@@ -1622,6 +1689,10 @@ export function Settings() {
                   <input type="text" value={subjectForm.name || ''} onChange={e => setSubjectForm({...subjectForm, name: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" required />
                 </div>
                 <div>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">科目编号</label>
+                  <input type="text" value={subjectForm.code || ''} onChange={e => setSubjectForm({...subjectForm, code: e.target.value})} placeholder="例如：S001" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" />
+                </div>
+                <div>
                   <label className="text-sm font-semibold text-slate-600 block mb-1">科目类别</label>
                   <select value={subjectForm.type || '中职公共基础课'} onChange={e => setSubjectForm({...subjectForm, type: e.target.value as SubjectType, departmentId: '', majorId: ''})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500">
                     <option value="中职公共基础课">中职公共基础课</option>
@@ -1661,9 +1732,11 @@ export function Settings() {
                     newSubjectName.trim(),
                     newSubjectType,
                     newSubjectType === '中职专业课' ? newSubjectDepartmentId : undefined,
-                    newSubjectType === '中职专业课' ? newSubjectMajorId : undefined
+                    newSubjectType === '中职专业课' ? newSubjectMajorId : undefined,
+                    newSubjectCode.trim()
                   ); 
                   setNewSubjectName(''); 
+                  setNewSubjectCode('');
                   setNewSubjectDepartmentId('');
                   setNewSubjectMajorId('');
                 } 
@@ -1671,6 +1744,10 @@ export function Settings() {
                 <div>
                   <label className="text-sm font-semibold text-slate-600 block mb-1">科目名称 *</label>
                   <input type="text" value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)} placeholder="例如：电子技术基础" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" required />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">科目编号</label>
+                  <input type="text" value={newSubjectCode} onChange={(e) => setNewSubjectCode(e.target.value)} placeholder="例如：S001" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" />
                 </div>
                 <div>
                   <label className="text-sm font-semibold text-slate-600 block mb-1">科目类别</label>
@@ -1817,6 +1894,7 @@ export function Settings() {
                         else setSelectedSubjects(new Set());
                       }} className="cursor-pointer" />
                     </th>
+                    <th className="p-3">编号</th>
                     <th className="p-3">科目名称</th>
                     <th className="p-3">类型</th>
                     <th className="p-3">关联产业部</th>
@@ -1841,6 +1919,7 @@ export function Settings() {
                             setSelectedSubjects(next);
                           }} className="cursor-pointer" />
                         </td>
+                        <td className="p-3 font-mono text-slate-500 text-xs">{s.code || '-'}</td>
                         <td className="p-3 font-semibold text-slate-900">{s.name}</td>
                         <td className="p-3">
                           <span className={`px-2 py-0.5 rounded text-xs border ${

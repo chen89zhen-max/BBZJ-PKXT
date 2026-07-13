@@ -150,12 +150,11 @@ export function TeacherWorkload() {
     const active = filtered.filter(
       (c) => c.status !== "已毕业" && c.status !== "合并解散",
     ).length;
-    const inSchool = filtered.filter((c) => c.status === "正常在校").length;
+    const inSchool = filtered.filter((c) => (c.status || "正常在校") === "正常在校").length;
     const internship = filtered.filter((c) => c.status === "外出实习").length;
-    const returned = filtered.filter((c) => c.status === "实习返校").length;
     const graduated = filtered.filter((c) => c.status === "已毕业").length;
 
-    return { total, active, inSchool, internship, returned, graduated };
+    return { total, active, inSchool, internship, graduated };
   }, [state.classes, state.majors, chartFilters]);
 
   // Student enrollment metrics (reactive to filters)
@@ -186,20 +185,16 @@ export function TeacherWorkload() {
       (c) => c.status !== "已毕业" && c.status !== "合并解散",
     );
     const totalInSchool = activeClasses
-      .filter((c) => c.status === "正常在校")
+      .filter((c) => (c.status || "正常在校") === "正常在校")
       .reduce((sum, c) => sum + (c.studentCount || 0), 0);
     const totalInternship = activeClasses
       .filter((c) => c.status === "外出实习")
       .reduce((sum, c) => sum + (c.studentCount || 0), 0);
-    const totalReturned = activeClasses
-      .filter((c) => c.status === "实习返校")
-      .reduce((sum, c) => sum + (c.studentCount || 0), 0);
-    const grandTotal = totalInSchool + totalInternship + totalReturned;
+    const grandTotal = totalInSchool + totalInternship;
 
     return {
       totalInSchool,
       totalInternship,
-      totalReturned,
       grandTotal,
       graduated: filtered
         .filter((c) => c.status === "已毕业")
@@ -278,6 +273,34 @@ export function TeacherWorkload() {
     state.schedules,
     chartFilters,
   ]);
+
+  const filteredMajorsCount = useMemo(() => {
+    let list = state.majors;
+    if (chartFilters.deptId !== "all") {
+      list = list.filter(m => m.departmentId === chartFilters.deptId);
+    }
+    if (chartFilters.majorId !== "all") {
+      list = list.filter(m => m.id === chartFilters.majorId);
+    }
+    return list.length;
+  }, [state.majors, chartFilters.deptId, chartFilters.majorId]);
+
+  const filteredDeptsCount = useMemo(() => {
+    const teachingDepts = state.departments.filter(d => !['公共基础学院', '行政干部', '职员与工勤'].includes(d.name));
+    if (chartFilters.deptId !== "all") {
+      return teachingDepts.some(d => d.id === chartFilters.deptId) ? 1 : 0;
+    }
+    return teachingDepts.length;
+  }, [state.departments, chartFilters.deptId]);
+
+  const filteredSubjectsCount = useMemo(() => {
+    if (chartFilters.gradeId === "all" && chartFilters.deptId === "all" && chartFilters.majorId === "all") {
+      return state.subjects.length;
+    }
+    const classIds = new Set(filteredChartClasses.map(c => c.id));
+    const subjectIds = new Set(state.schedules.filter(s => classIds.has(s.classId) && s.hours > 0).map(s => s.subjectId));
+    return subjectIds.size;
+  }, [state.subjects, state.schedules, filteredChartClasses, chartFilters]);
 
   // Grade-wise Student & Class Count (reactive to filters)
   const gradeStats = useMemo(() => {
@@ -395,14 +418,13 @@ export function TeacherWorkload() {
   // Class Status Breakdown for Gauges
   const classStatusBreakdown = useMemo(() => {
     let inSchool = 0,
-      internship = 0,
-      returned = 0;
+      internship = 0;
     let total = 0;
     filteredChartClasses.forEach((c) => {
       total++;
-      if (c.status === "正常在校") inSchool++;
-      if (c.status === "外出实习") internship++;
-      if (c.status === "实习返校") returned++;
+      const status = c.status || "正常在校";
+      if (status === "正常在校") inSchool++;
+      if (status === "外出实习") internship++;
     });
     total = total || 1;
     return [
@@ -421,14 +443,6 @@ export function TeacherWorkload() {
         textColor: "text-orange-700",
         bgColor: "bg-orange-50",
         percentage: Math.round((internship / total) * 100),
-      },
-      {
-        name: "实习返校",
-        count: returned,
-        color: "bg-indigo-500",
-        textColor: "text-indigo-700",
-        bgColor: "bg-indigo-50",
-        percentage: Math.round((returned / total) * 100),
       },
     ];
   }, [filteredChartClasses]);
@@ -518,13 +532,10 @@ export function TeacherWorkload() {
 
         // Active vs Internship
         const inSchoolCount = adminMajorClasses.filter(
-          (c) => c.status === "正常在校",
+          (c) => (c.status || "正常在校") === "正常在校",
         ).length;
         const internshipCount = adminMajorClasses.filter(
           (c) => c.status === "外出实习",
-        ).length;
-        const returnedCount = adminMajorClasses.filter(
-          (c) => c.status === "实习返校",
         ).length;
         const graduatedCount = adminMajorClasses.filter(
           (c) => c.status === "已毕业",
@@ -537,7 +548,6 @@ export function TeacherWorkload() {
           classCount: adminMajorClasses.length,
           inSchoolCount,
           internshipCount,
-          returnedCount,
           graduatedCount,
           studentCount,
           totalHours,
@@ -1045,12 +1055,12 @@ export function TeacherWorkload() {
               <div>
                 <div className="flex items-baseline gap-1">
                   <span className="text-3xl font-extrabold text-slate-800">
-                    {state.majors.length}
+                    {filteredMajorsCount}
                   </span>
                   <span className="text-sm text-slate-500">个</span>
                 </div>
                 <p className="text-sm text-slate-400 mt-1">
-                  涵盖专业部: {state.departments.filter(d => !['公共基础学院', '行政干部', '职员与工勤'].includes(d.name)).length} 个
+                  涵盖专业部: {filteredDeptsCount} 个
                 </p>
               </div>
             </div>
@@ -1127,7 +1137,7 @@ export function TeacherWorkload() {
                   <span className="text-sm text-slate-500">节/周</span>
                 </div>
                 <p className="text-sm text-slate-400 mt-1">
-                  活跃学科: {state.subjects.length} 门
+                  活跃学科: {filteredSubjectsCount} 门
                 </p>
               </div>
             </div>
@@ -1523,11 +1533,6 @@ export function TeacherWorkload() {
                                 实习:{major.internshipCount}
                               </span>
                             )}
-                            {major.returnedCount > 0 && (
-                              <span className="bg-indigo-50 text-indigo-700 px-1 rounded">
-                                返校:{major.returnedCount}
-                              </span>
-                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right font-extrabold text-indigo-600">
@@ -1652,7 +1657,6 @@ export function TeacherWorkload() {
                   <option value="all">所有状态</option>
                   <option value="正常在校">正常在校 (可排课)</option>
                   <option value="外出实习">外出实习 (不排课/课时清零)</option>
-                  <option value="实习返校">实习返校 (可排课)</option>
                   <option value="已毕业">已毕业 (不排课/课时清零)</option>
                   <option value="合并解散">合并解散 (不排课/课时清零)</option>
                 </select>
@@ -1777,26 +1781,22 @@ export function TeacherWorkload() {
                             className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-bold border ${
                               cls.status === "外出实习"
                                 ? "bg-orange-50 text-orange-700 border-orange-200"
-                                : cls.status === "实习返校"
-                                  ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                  : cls.status === "已毕业"
-                                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                                    : cls.status === "合并解散"
-                                      ? "bg-slate-100 text-slate-500 border-slate-200"
-                                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : cls.status === "已毕业"
+                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  : cls.status === "合并解散"
+                                    ? "bg-slate-100 text-slate-500 border-slate-200"
+                                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
                             }`}
                           >
                             <span
                               className={`w-1.5 h-1.5 rounded-full ${
                                 cls.status === "外出实习"
                                   ? "bg-orange-500"
-                                  : cls.status === "实习返校"
-                                    ? "bg-indigo-500"
-                                    : cls.status === "已毕业"
-                                      ? "bg-rose-500"
-                                      : cls.status === "合并解散"
-                                        ? "bg-slate-400"
-                                        : "bg-emerald-500"
+                                  : cls.status === "已毕业"
+                                    ? "bg-rose-500"
+                                    : cls.status === "合并解散"
+                                      ? "bg-slate-400"
+                                      : "bg-emerald-500"
                               }`}
                             />
                             {cls.status || "正常在校"}

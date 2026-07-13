@@ -89,6 +89,7 @@ interface AppContextType {
     type: SubjectType,
     departmentId?: string,
     majorId?: string,
+    code?: string,
   ) => void;
   addSubjects: (subjects: Omit<Subject, "id">[]) => void;
   updateSubject: (subject: Subject) => void;
@@ -123,6 +124,8 @@ interface AppContextType {
     classroomId: string,
     classId: string | undefined,
   ) => void;
+  clearAllClassroomAssignments: () => void;
+  clearDepartmentClassroomAssignments: (departmentId: string) => void;
 
   // Schedules
   clearSchedules: () => void;
@@ -143,7 +146,7 @@ interface AppContextType {
   transitionAcademicYear: (newGradeName: string) => void;
   updateClassStatus: (
     classId: string,
-    status: "正常在校" | "外出实习" | "实习返校" | "已毕业" | "合并解散",
+    status: "正常在校" | "外出实习" | "已毕业" | "合并解散",
   ) => void;
 
   // Talent Programs
@@ -636,6 +639,7 @@ export const AppProvider: React.FC<{
     type: SubjectType,
     departmentId?: string,
     majorId?: string,
+    code?: string,
   ) => {
     const exists = state.subjects.some(
       (s) =>
@@ -648,7 +652,7 @@ export const AppProvider: React.FC<{
       ...state,
       subjects: [
         ...state.subjects,
-        { id: uuidv4(), name, type, departmentId, majorId },
+        { id: uuidv4(), name, type, departmentId, majorId, code },
       ],
     });
   };
@@ -955,6 +959,45 @@ export const AppProvider: React.FC<{
     });
   };
 
+  const clearAllClassroomAssignments = () => {
+    broadcastState({
+      ...state,
+      classes: state.classes.map(c => ({ ...c, classroom: "" })),
+      buildings: (state.buildings || []).map(b => ({
+        ...b,
+        floors: b.floors.map(f => ({
+          ...f,
+          classrooms: f.classrooms.map(c => ({ ...c, classId: undefined }))
+        }))
+      }))
+    });
+  };
+
+  const clearDepartmentClassroomAssignments = (departmentId: string) => {
+    const deptMajors = state.majors.filter((m) => m.departmentId === departmentId);
+    const deptMajorIds = new Set(deptMajors.map((m) => m.id));
+    const deptClassIds = new Set(
+      state.classes.filter((c) => deptMajorIds.has(c.majorId)).map((c) => c.id),
+    );
+
+    broadcastState({
+      ...state,
+      classes: state.classes.map(c => deptClassIds.has(c.id) ? { ...c, classroom: "" } : c),
+      buildings: (state.buildings || []).map(b => ({
+        ...b,
+        floors: b.floors.map(f => ({
+          ...f,
+          classrooms: f.classrooms.map(c => {
+            if (c.classId && deptClassIds.has(c.classId)) {
+              return { ...c, classId: undefined };
+            }
+            return c;
+          })
+        }))
+      }))
+    });
+  };
+
   // Archives
   const createArchive = (departmentId: string, name: string) => {
     // A department's schedules are those where the class belongs to a major in that department
@@ -1082,7 +1125,7 @@ export const AppProvider: React.FC<{
 
   const updateClassStatus = (
     classId: string,
-    status: "正常在校" | "外出实习" | "实习返校" | "已毕业" | "合并解散",
+    status: "正常在校" | "外出实习" | "已毕业" | "合并解散",
   ) => {
     let updatedSchedules = state.schedules;
     if (status === "外出实习" || status === "已毕业" || status === "合并解散") {
@@ -1279,6 +1322,8 @@ export const AppProvider: React.FC<{
         updateClassroom,
         deleteClassroom,
         assignClassToRoom,
+        clearAllClassroomAssignments,
+        clearDepartmentClassroomAssignments,
         clearSchedules,
         clearDepartmentSchedules,
         createArchive,

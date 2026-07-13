@@ -149,7 +149,7 @@ export function SemesterPlanner() {
     classroom: string;
     studentCount: number;
     headTeacherId: string;
-    status: "正常在校" | "外出实习" | "实习返校" | "已毕业" | "合并解散";
+    status: "正常在校" | "外出实习" | "已毕业" | "合并解散";
     relationType?: 'normal' | 'merged' | 'split';
     associatedClassIds?: string[];
   }>({
@@ -487,7 +487,6 @@ export function SemesterPlanner() {
       let totalWeeklyHours = 0;
       let onCampusCount = 0;
       let internshipCount = 0;
-      let returnedCount = 0;
       let graduatedCount = 0;
       let totalAdminClasses = 0;
 
@@ -506,8 +505,6 @@ export function SemesterPlanner() {
             graduatedCount++;
           } else if (status === "正常在校") {
             onCampusCount++;
-          } else if (status === "实习返校") {
-            returnedCount++;
           } else if (status === "外出实习") {
             internshipCount++;
           }
@@ -524,7 +521,6 @@ export function SemesterPlanner() {
         totalClasses: totalAdminClasses,
         onCampusCount,
         internshipCount,
-        returnedCount,
         graduatedCount,
         totalWeeklyHours,
         teachersNeeded: parseFloat(teachersNeeded.toFixed(1)),
@@ -554,7 +550,6 @@ export function SemesterPlanner() {
       let totalWeeklyHours = 0;
       let onCampusCount = 0;
       let internshipCount = 0;
-      let returnedCount = 0;
       let graduatedCount = 0;
       let totalAdminClasses = 0;
 
@@ -573,8 +568,6 @@ export function SemesterPlanner() {
             graduatedCount++;
           } else if (status === "正常在校") {
             onCampusCount++;
-          } else if (status === "实习返校") {
-            returnedCount++;
           } else if (status === "外出实习") {
             internshipCount++;
           }
@@ -599,7 +592,6 @@ export function SemesterPlanner() {
         totalClasses: totalAdminClasses,
         onCampusCount,
         internshipCount,
-        returnedCount,
         graduatedCount,
         totalWeeklyHours,
         teachersNeeded: parseFloat(teachersNeeded.toFixed(1)),
@@ -878,7 +870,7 @@ export function SemesterPlanner() {
               <div>
                 <span className="font-bold">班级状态与排课关联说明：</span>
                 在下方表格中更改班级的状态后，将直接联动影响“师资需求测算”。
-                处于“正常在校”或“实习返校”状态的班级会按标准安排全量周课时；处于“外出实习”状态的班级将仅保留极少量/零实习指导课时；“已毕业”或“合并解散”班级将不产生任何课时需求。
+                处于“正常在校”状态的班级会按标准安排全量周课时；处于“外出实习”状态的班级将仅保留极少量/零实习指导课时；“已毕业”或“合并解散”班级将不产生任何课时需求。
               </div>
             </div>
 
@@ -1115,7 +1107,6 @@ export function SemesterPlanner() {
                               <option value="">全部状态</option>
                               <option value="正常在校">正常在校</option>
                               <option value="外出实习">外出实习</option>
-                              <option value="实习返校">实习返校</option>
                               <option value="已毕业">已毕业</option>
                               <option value="合并解散">合并解散</option>
                             </select>
@@ -1240,9 +1231,7 @@ export function SemesterPlanner() {
                                               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                               : status === "外出实习"
                                                 ? "bg-orange-50 text-orange-700 border-orange-200"
-                                                : status === "实习返校"
-                                                  ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                                  : "bg-slate-50 text-slate-600 border-slate-200"
+                                                : "bg-slate-50 text-slate-600 border-slate-200"
                                           }`}
                                         >
                                           <option value="正常在校">
@@ -1250,9 +1239,6 @@ export function SemesterPlanner() {
                                           </option>
                                           <option value="外出实习">
                                             外出实习
-                                          </option>
-                                          <option value="实习返校">
-                                            实习返校
                                           </option>
                                           <option value="已毕业">已毕业</option>
                                           <option value="合并解散">
@@ -1273,8 +1259,7 @@ export function SemesterPlanner() {
                                           <span className="text-amber-600 font-semibold">
                                             不参与当前排课
                                           </span>
-                                        ) : status === "正常在校" ||
-                                          status === "实习返校" ? (
+                                        ) : status === "正常在校" ? (
                                           <span className="text-emerald-600 font-semibold">
                                             标准排课 ({clsHours}课时)
                                           </span>
@@ -1497,7 +1482,7 @@ export function SemesterPlanner() {
                     </span>
                   </div>
                   <p className="text-sm text-slate-400 mt-1">
-                    正常在校班级、实习返校班级默认的每周教学总课时参考值。
+                    正常在校班级默认的每周教学总课时参考值。
                   </p>
                 </div>
                 <div>
@@ -1919,8 +1904,7 @@ export function SemesterPlanner() {
                           {df.totalClasses} 个班
                         </p>
                         <p className="text-sm text-slate-400 mt-0.5">
-                          (在校 {df.onCampusCount} / 实习 {df.internshipCount} /
-                          返校 {df.returnedCount})
+                          (在校 {df.onCampusCount} / 实习 {df.internshipCount})
                         </p>
                       </div>
                       <div>
@@ -2016,8 +2000,7 @@ export function SemesterPlanner() {
                           {mf.totalClasses} 个班
                         </p>
                         <p className="text-sm text-slate-400 mt-0.5">
-                          (在校 {mf.onCampusCount} / 实习 {mf.internshipCount} /
-                          返校 {mf.returnedCount})
+                          (在校 {mf.onCampusCount} / 实习 {mf.internshipCount})
                         </p>
                       </div>
                       <div>
@@ -2564,7 +2547,6 @@ export function SemesterPlanner() {
                   >
                     <option value="正常在校">正常在校</option>
                     <option value="外出实习">外出实习</option>
-                    <option value="实习返校">实习返校</option>
                     <option value="已毕业">已毕业</option>
                     <option value="合并解散">合并解散</option>
                   </select>

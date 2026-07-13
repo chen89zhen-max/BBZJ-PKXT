@@ -664,9 +664,6 @@ export function MatrixSchedule({ department }: { department: Department }) {
                         {c.status === '合并解散' && (
                           <span className="text-[10px] bg-slate-300 text-slate-700 px-1.5 py-0.5 rounded font-bold">合并解散 (不排课)</span>
                         )}
-                        {c.status === '实习返校' && (
-                          <span className="text-[10px] bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded font-bold">实习返校</span>
-                        )}
                       </div>
                     </th>
                   )})}

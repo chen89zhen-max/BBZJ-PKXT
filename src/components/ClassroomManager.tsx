@@ -15,6 +15,8 @@ export function ClassroomManager() {
     updateClassroom,
     deleteClassroom,
     assignClassToRoom,
+    clearAllClassroomAssignments,
+    clearDepartmentClassroomAssignments
   } = useAppContext();
 
   const [activeBuildingId, setActiveBuildingId] = useState<string | null>(
@@ -23,6 +25,8 @@ export function ClassroomManager() {
 
   // Modals state
   const [showBuildingModal, setShowBuildingModal] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clearDeptId, setClearDeptId] = useState<string>('all');
   const [editingBuildingId, setEditingBuildingId] = useState<string | null>(
     null,
   );
@@ -123,6 +127,23 @@ export function ClassroomManager() {
     setDeleteConfirm(null);
   };
 
+  const unassignedClasses = state.classes.filter(c => {
+    if (c.status === "外出实习" || c.status === "已毕业" || c.status === "合并解散") return false;
+    
+    // Check if it's assigned to any room
+    let isAssigned = false;
+    for (const b of state.buildings || []) {
+      for (const f of b.floors) {
+        if (f.classrooms.some(room => room.classId === c.id)) {
+          isAssigned = true;
+          break;
+        }
+      }
+      if (isAssigned) break;
+    }
+    return !isAssigned;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
@@ -135,16 +156,24 @@ export function ClassroomManager() {
             设置学校楼栋结构，并将班级分配到具体教室，形成可视化校园地图。
           </p>
         </div>
-        <button
-          onClick={() => {
-            setEditingBuildingId(null);
-            setBuildingName("");
-            setShowBuildingModal(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> 添加楼栋
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowClearModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-rose-200 text-rose-600 rounded-md hover:bg-rose-50 transition-colors text-sm font-medium shadow-sm"
+          >
+            <Trash2 className="w-4 h-4" /> 一键清空排布
+          </button>
+          <button
+            onClick={() => {
+              setEditingBuildingId(null);
+              setBuildingName("");
+              setShowBuildingModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> 添加楼栋
+          </button>
+        </div>
       </div>
 
       {(state.buildings || []).length === 0 ? (
@@ -158,55 +187,82 @@ export function ClassroomManager() {
       ) : (
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Building Tabs */}
-          <div className="w-full lg:w-64 flex-shrink-0 flex flex-col gap-2">
-            {(state.buildings || []).map((building) => (
-              <div
-                key={building.id}
-                className={`group flex items-center justify-between p-4 rounded-lg cursor-pointer border transition-all ${
-                  (activeBuildingId || state.buildings?.[0]?.id) === building.id
-                    ? "bg-indigo-50 border-indigo-200 shadow-sm"
-                    : "bg-white border-slate-200 hover:border-indigo-300"
-                }`}
-                onClick={() => setActiveBuildingId(building.id)}
-              >
-                <span
-                  className={`font-bold ${
-                    (activeBuildingId || state.buildings?.[0]?.id) ===
-                    building.id
-                      ? "text-indigo-800"
-                      : "text-slate-700"
+          <div className="w-full lg:w-64 flex-shrink-0 flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              {(state.buildings || []).map((building) => (
+                <div
+                  key={building.id}
+                  className={`group flex items-center justify-between p-4 rounded-lg cursor-pointer border transition-all ${
+                    (activeBuildingId || state.buildings?.[0]?.id) === building.id
+                      ? "bg-indigo-50 border-indigo-200 shadow-sm"
+                      : "bg-white border-slate-200 hover:border-indigo-300"
                   }`}
+                  onClick={() => setActiveBuildingId(building.id)}
                 >
-                  {building.name}
-                </span>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingBuildingId(building.id);
-                      setBuildingName(building.name);
-                      setShowBuildingModal(true);
-                    }}
-                    className="p-1 text-slate-400 hover:text-indigo-600 rounded"
+                  <span
+                    className={`font-bold ${
+                      (activeBuildingId || state.buildings?.[0]?.id) ===
+                      building.id
+                        ? "text-indigo-800"
+                        : "text-slate-700"
+                    }`}
                   >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteConfirm({
-                        type: "building",
-                        id: building.id,
-                        title: `删除楼栋：${building.name}`,
-                      });
-                    }}
-                    className="p-1 text-slate-400 hover:text-rose-600 rounded"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                    {building.name}
+                  </span>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingBuildingId(building.id);
+                        setBuildingName(building.name);
+                        setShowBuildingModal(true);
+                      }}
+                      className="p-1 text-slate-400 hover:text-indigo-600 rounded"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteConfirm({
+                          type: "building",
+                          id: building.id,
+                          title: `删除楼栋：${building.name}`,
+                        });
+                      }}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
+              ))}
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-4">
+              <h3 className="font-bold text-slate-700 text-sm mb-3 flex items-center justify-between">
+                <span>未安排教室的班级</span>
+                <span className="bg-rose-100 text-rose-700 text-xs px-2 py-0.5 rounded-full">{unassignedClasses.length}</span>
+              </h3>
+              <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-1">
+                {unassignedClasses.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-4">所有正常班级均已安排教室</p>
+                ) : (
+                  unassignedClasses.map(c => {
+                    const major = state.majors.find(m => m.id === c.majorId);
+                    const dept = state.departments.find(d => d.id === major?.departmentId);
+                    const grade = state.grades.find(g => g.id === c.gradeId);
+                    const fullName = grade && !c.name.includes(grade.name) ? `${grade.name}${c.name}` : c.name;
+                    return (
+                      <div key={c.id} className="p-2 bg-slate-50 border border-slate-100 rounded text-xs flex flex-col gap-1">
+                        <span className="font-bold text-slate-700">{fullName}</span>
+                        <span className="text-slate-500">{dept?.name}</span>
+                      </div>
+                    );
+                  })
+                )}
               </div>
-            ))}
+            </div>
           </div>
 
           {/* Floor Map */}
@@ -693,6 +749,64 @@ export function ClassroomManager() {
         onConfirm={executeDelete}
         onCancel={() => setDeleteConfirm(null)}
       />
+
+      {/* Clear Assignments Modal */}
+      {showClearModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-800 text-lg">一键清空教室排布</h3>
+              <button
+                onClick={() => setShowClearModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  选择清空范围
+                </label>
+                <select
+                  value={clearDeptId}
+                  onChange={(e) => setClearDeptId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="all">所有班级 (全局清空)</option>
+                  {state.departments.filter(d => !['公共基础学院', '行政干部', '职员与工勤'].includes(d.name)).map((d) => (
+                    <option key={d.id} value={d.id}>仅清空: {d.name}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-sm text-slate-500 mt-2 bg-slate-50 p-3 rounded border border-slate-200">
+                ⚠️ 注意：此操作仅会移除班级与教室的绑定关系，不会删除班级或教室的基础数据。
+              </p>
+            </div>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button
+                onClick={() => setShowClearModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  if (clearDeptId === 'all') {
+                    clearAllClassroomAssignments();
+                  } else {
+                    clearDepartmentClassroomAssignments(clearDeptId);
+                  }
+                  setShowClearModal(false);
+                }}
+                className="px-4 py-2 bg-rose-600 text-white text-sm font-medium rounded-md hover:bg-rose-700"
+              >
+                确认清空
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
