@@ -132,8 +132,8 @@ export function SemesterPlanner() {
 
   // Sort states for subject forecast
   const [subjectSortField, setSubjectSortField] = useState<
-    "name" | "type" | "hours" | "needed" | "actual" | "ratio" | "gap"
-  >("gap");
+    "code" | "name" | "type" | "hours" | "needed" | "actual" | "ratio" | "gap"
+  >("code");
   const [subjectSortOrder, setSubjectSortOrder] = useState<"asc" | "desc">(
     "asc",
   );
@@ -651,6 +651,7 @@ export function SemesterPlanner() {
 
         return {
           id: `sub-forecast-${idx}`,
+          code: sampleSubject?.code || "",
           name: subName,
           type: sampleSubject?.type || "专业课",
           deptName: dept?.name || "基础课",
@@ -699,8 +700,15 @@ export function SemesterPlanner() {
           valB = ratioB;
         }
 
-        if (valA < valB) return subjectSortOrder === "asc" ? -1 : 1;
-        if (valA > valB) return subjectSortOrder === "asc" ? 1 : -1;
+        if (typeof valA === 'string' && typeof valB === 'string') {
+          const comp = valA.localeCompare(valB, 'zh-CN');
+          if (comp !== 0) {
+            return subjectSortOrder === "asc" ? comp : -comp;
+          }
+        } else {
+          if (valA < valB) return subjectSortOrder === "asc" ? -1 : 1;
+          if (valA > valB) return subjectSortOrder === "asc" ? 1 : -1;
+        }
         return 0;
       });
   }, [
@@ -2080,6 +2088,24 @@ export function SemesterPlanner() {
                           className="px-6 py-3 cursor-pointer hover:bg-slate-200"
                           onClick={() => {
                             setSubjectSortOrder(
+                              subjectSortField === "code" &&
+                                subjectSortOrder === "asc"
+                                ? "desc"
+                                : "asc",
+                            );
+                            setSubjectSortField("code");
+                          }}
+                        >
+                          <div className="flex items-center gap-1">
+                            课程编号{" "}
+                            {subjectSortField === "code" &&
+                              (subjectSortOrder === "asc" ? "↑" : "↓")}
+                          </div>
+                        </th>
+                        <th
+                          className="px-6 py-3 cursor-pointer hover:bg-slate-200"
+                          onClick={() => {
+                            setSubjectSortOrder(
                               subjectSortField === "name" &&
                                 subjectSortOrder === "asc"
                                 ? "desc"
@@ -2210,6 +2236,9 @@ export function SemesterPlanner() {
                           key={sf.id}
                           className="hover:bg-slate-50 transition-colors"
                         >
+                          <td className="px-6 py-4 font-mono text-slate-500 text-xs">
+                            {sf.code || "-"}
+                          </td>
                           <td className="px-6 py-4 font-bold text-slate-800">
                             {sf.name}
                           </td>

@@ -518,6 +518,39 @@ export function Settings() {
     xlsx.writeFile(wb, '班级导入模板.xlsx');
   };
 
+  const exportTeachers = () => {
+    const data = state.teachers.map(t => ({
+      '系统ID(勿改)': t.id,
+      '姓名': t.name,
+      '性别': t.gender || '',
+      '身份证号码': t.idCard || '',
+      '所属产业部': state.departments.find(d => d.id === t.department)?.name || t.department || '',
+      '主要任教学科': t.primarySubject || '',
+      '聘用性质': t.employmentType || '',
+      '岗位类型': t.positionType || '',
+      '默认周课时': t.defaultWeeklyHours || ''
+    }));
+    const ws = xlsx.utils.json_to_sheet(data);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, '教师数据');
+    xlsx.writeFile(wb, '教师数据导出.xlsx');
+  };
+
+  const exportSubjects = () => {
+    const data = state.subjects.map(s => ({
+      '系统ID(勿改)': s.id,
+      '编号': s.code || '',
+      '名称': s.name,
+      '类型': s.type,
+      '所属产业部': s.departmentId ? (state.departments.find(d => d.id === s.departmentId)?.name || '') : '',
+      '所属专业': s.majorId ? (state.majors.find(m => m.id === s.majorId)?.name || '') : ''
+    }));
+    const ws = xlsx.utils.json_to_sheet(data);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, '科目数据');
+    xlsx.writeFile(wb, '科目数据导出.xlsx');
+  };
+
   const handleTeacherImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -529,16 +562,26 @@ export function Settings() {
       const ws = wb.Sheets[wsname];
       const data = xlsx.utils.sheet_to_json(ws);
       
-      const teachersToAdd = data.map((row: any) => ({
-        name: row['姓名'] || row['name'] || '',
-        gender: row['性别'] || row['gender'] || '',
-        idCard: row['身份证号码'] || row['idCard'] || '',
-        department: row['所属产业部'] || row['department'] || '',
-        primarySubject: row['主要任教学科'] || row['primarySubject'] || '',
-        employmentType: row['聘用性质'] || row['employmentType'] || undefined,
-        positionType: row['岗位类型'] || row['positionType'] || undefined,
-        defaultWeeklyHours: row['默认周课时'] ? Number(row['默认周课时']) : (row['defaultWeeklyHours'] ? Number(row['defaultWeeklyHours']) : undefined)
-      })).filter(t => t.name);
+      const teachersToAdd = data.map((row: any) => {
+        const deptName = row['所属产业部'] || row['department'] || '';
+        let departmentId = deptName;
+        if (deptName) {
+          const dept = state.departments.find(d => d.name === deptName);
+          if (dept) departmentId = dept.id;
+        }
+
+        return {
+          id: row['系统ID(勿改)'] || row['id'] || undefined,
+          name: row['姓名'] || row['name'] || '',
+          gender: row['性别'] || row['gender'] || '',
+          idCard: row['身份证号码'] || row['idCard'] || '',
+          department: departmentId,
+          primarySubject: row['主要任教学科'] || row['primarySubject'] || '',
+          employmentType: row['聘用性质'] || row['employmentType'] || undefined,
+          positionType: row['岗位类型'] || row['positionType'] || undefined,
+          defaultWeeklyHours: row['默认周课时'] ? Number(row['默认周课时']) : (row['defaultWeeklyHours'] ? Number(row['defaultWeeklyHours']) : undefined)
+        };
+      }).filter(t => t.name);
 
       if (teachersToAdd.length > 0) {
         addTeachers(teachersToAdd);
@@ -550,6 +593,7 @@ export function Settings() {
 
   const downloadTeacherTemplate = () => {
     const ws = xlsx.utils.json_to_sheet([{
+      '系统ID(勿改)': '',
       '姓名': '张三',
       '性别': '男',
       '身份证号码': '110105199001011234',
@@ -601,6 +645,8 @@ export function Settings() {
         }
         
         return {
+          id: row['系统ID(勿改)'] || row['id'] || undefined,
+          code: row['编号'] || row['code'] || undefined,
           name: row['名称'] || row['name'] || '',
           type: type as SubjectType,
           departmentId,
@@ -619,12 +665,16 @@ export function Settings() {
   const downloadSubjectTemplate = () => {
     const ws = xlsx.utils.json_to_sheet([
       {
+        '系统ID(勿改)': '',
+        '编号': 'S001',
         '名称': '高等数学',
         '类型': '中职公共基础课',
         '所属产业部': '',
         '所属专业': ''
       },
       {
+        '系统ID(勿改)': '',
+        '编号': 'S002',
         '名称': 'C语言程序设计',
         '类型': '中职专业课',
         '所属产业部': '信息技术产业部',
@@ -1450,7 +1500,10 @@ export function Settings() {
                   <button onClick={downloadTeacherTemplate} className="bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 rounded text-xs flex items-center justify-center gap-1 border border-slate-200">
                     <Download className="w-3.5 h-3.5" /> 模板下载
                   </button>
-                  <label className="cursor-pointer bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 rounded text-xs flex items-center justify-center gap-1 border border-slate-200">
+                  <button onClick={exportTeachers} className="bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 rounded text-xs flex items-center justify-center gap-1 border border-slate-200">
+                    <Download className="w-3.5 h-3.5" /> 导出数据
+                  </button>
+                  <label className="col-span-2 cursor-pointer bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 rounded text-xs flex items-center justify-center gap-1 border border-slate-200">
                     <Upload className="w-3.5 h-3.5" /> 导入数据
                     <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleTeacherImport} />
                   </label>
@@ -1489,16 +1542,7 @@ export function Settings() {
                 <select value={teacherSubjectFilter} onChange={e => setTeacherSubjectFilter(e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white">
                   <option value="">全部任教学科</option>
                   {Array.from(new Set(state.teachers.map(t => t.primarySubject).filter(Boolean)))
-                    .sort((a, b) => {
-                      const subjectA = state.subjects.find(s => s.name === a);
-                      const subjectB = state.subjects.find(s => s.name === b);
-                      const codeA = subjectA?.code || '';
-                      const codeB = subjectB?.code || '';
-                      if (codeA !== codeB) {
-                        return codeA.localeCompare(codeB, 'zh-CN');
-                      }
-                      return (a as string).localeCompare(b as string, 'zh-CN');
-                    })
+                    .sort((a, b) => (a as string).localeCompare(b as string, 'zh-CN'))
                     .map(s => (
                       <option key={s as string} value={s as string}>{s as string}</option>
                     ))}
@@ -1788,7 +1832,10 @@ export function Settings() {
                   <button onClick={downloadSubjectTemplate} className="bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 rounded text-xs flex items-center justify-center gap-1 border border-slate-200">
                     <Download className="w-3.5 h-3.5" /> 模板下载
                   </button>
-                  <label className="cursor-pointer bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 rounded text-xs flex items-center justify-center gap-1 border border-slate-200">
+                  <button onClick={exportSubjects} className="bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 rounded text-xs flex items-center justify-center gap-1 border border-slate-200">
+                    <Download className="w-3.5 h-3.5" /> 导出数据
+                  </button>
+                  <label className="col-span-2 cursor-pointer bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 rounded text-xs flex items-center justify-center gap-1 border border-slate-200">
                     <Upload className="w-3.5 h-3.5" /> 导入数据
                     <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleSubjectImport} />
                   </label>

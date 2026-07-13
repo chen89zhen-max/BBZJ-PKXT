@@ -30,6 +30,9 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
 } from "recharts";
 
 const calculateAge = (idCard?: string) => {
@@ -54,6 +57,17 @@ export function TeacherWorkload() {
   const [activeTab, setActiveTab] = useState<
     "overview" | "majors" | "classes" | "teachers"
   >("overview");
+
+  const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
+  const toggleDept = (deptName: string) => {
+    const newSet = new Set(expandedDepts);
+    if (newSet.has(deptName)) {
+      newSet.delete(deptName);
+    } else {
+      newSet.add(deptName);
+    }
+    setExpandedDepts(newSet);
+  };
 
   // --- Teacher Workload State & Filters (Tab 4) ---
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
@@ -561,6 +575,26 @@ export function TeacherWorkload() {
       .sort((a, b) => b.studentCount - a.studentCount);
   }, [state.majors, state.classes, state.departments, state.schedules]);
 
+  const departmentDetailedList = useMemo(() => {
+    const validDepts = state.departments.filter(d => !['公共基础学院', '行政干部', '职员与工勤'].includes(d.name));
+    
+    return validDepts.map(dept => {
+      const majors = majorDetailedList.filter(m => m.deptName === dept.name);
+      return {
+        id: dept.id,
+        name: dept.name,
+        majors,
+        classCount: majors.reduce((sum, m) => sum + m.classCount, 0),
+        studentCount: majors.reduce((sum, m) => sum + m.studentCount, 0),
+        inSchoolCount: majors.reduce((sum, m) => sum + m.inSchoolCount, 0),
+        internshipCount: majors.reduce((sum, m) => sum + m.internshipCount, 0),
+        totalHours: majors.reduce((sum, m) => sum + m.totalHours, 0),
+        enrollmentTarget: majors.reduce((sum, m) => sum + m.enrollmentTarget, 0),
+        avgClassSize: majors.reduce((sum, m) => sum + m.classCount, 0) > 0 ? Math.round(majors.reduce((sum, m) => sum + m.studentCount, 0) / majors.reduce((sum, m) => sum + m.classCount, 0)) : 0
+      };
+    }).sort((a, b) => b.studentCount - a.studentCount);
+  }, [state.departments, majorDetailedList]);
+
   // -------------------------------------------------------------------------
   // 4. DATA PREPARATION: Tab 3 (Class Status & Operations Detail)
   // -------------------------------------------------------------------------
@@ -633,6 +667,26 @@ export function TeacherWorkload() {
     classTypeFilter,
     classSearchQuery,
   ]);
+
+  const classStatusData = useMemo(() => {
+    const statusCounts: Record<string, number> = {};
+    filteredClassesList.forEach(c => {
+      const status = c.status || '正常在校';
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+    });
+    return Object.entries(statusCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [filteredClassesList]);
+
+  const classTypeData = useMemo(() => {
+    const typeCounts: Record<string, number> = {};
+    filteredClassesList.forEach(c => {
+      const type = c.type || '未知类别';
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+    });
+    return Object.entries(typeCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [filteredClassesList]);
+
+  const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#3b82f6', '#ec4899', '#14b8a6'];
 
   // -------------------------------------------------------------------------
   // 5. DATA PREPARATION: Tab 4 (Teacher Workloads Detail)
@@ -1497,77 +1551,145 @@ export function TeacherWorkload() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {majorDetailedList.map((major) => {
-                    const achievementRate =
-                      major.enrollmentTarget > 0
+                  {departmentDetailedList.map((dept) => {
+                    const deptAchievementRate =
+                      dept.enrollmentTarget > 0
                         ? Math.round(
-                            (major.studentCount / major.enrollmentTarget) * 100,
+                            (dept.studentCount / dept.enrollmentTarget) * 100,
                           )
                         : null;
+                    const isExpanded = expandedDepts.has(dept.name);
 
                     return (
-                      <tr
-                        key={major.id}
-                        className="hover:bg-slate-50 transition-colors"
-                      >
-                        <td className="px-6 py-4 font-bold text-slate-800">
-                          {major.name}
-                        </td>
-                        <td className="px-6 py-4 text-slate-600">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                            {major.deptName}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-center font-bold text-slate-700">
-                          {major.classCount}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
-                            {major.inSchoolCount > 0 && (
-                              <span className="bg-emerald-50 text-emerald-700 px-1 rounded">
-                                在校:{major.inSchoolCount}
-                              </span>
-                            )}
-                            {major.internshipCount > 0 && (
-                              <span className="bg-orange-50 text-orange-700 px-1 rounded">
-                                实习:{major.internshipCount}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right font-extrabold text-indigo-600">
-                          {major.studentCount}人
-                        </td>
-                        <td className="px-6 py-4 text-right text-slate-600">
-                          {major.enrollmentTarget > 0 ? (
-                            <div className="flex flex-col items-end">
-                              <span className="font-semibold">
-                                {major.enrollmentTarget}人
-                              </span>
-                              {achievementRate !== null && (
-                                <span
-                                  className={`text-xs font-bold ${achievementRate >= 100 ? "text-emerald-600" : "text-amber-600"}`}
-                                >
-                                  达成率 {achievementRate}%
+                      <React.Fragment key={dept.id}>
+                        <tr
+                          className="hover:bg-slate-50 transition-colors cursor-pointer"
+                          onClick={() => toggleDept(dept.name)}
+                        >
+                          <td colSpan={2} className="px-6 py-4 font-bold text-slate-800">
+                            <div className="flex items-center gap-2">
+                              <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                              {dept.name}
+                              <span className="text-xs font-normal text-slate-400">({dept.majors.length}个专业)</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center font-bold text-slate-700 bg-slate-50/50">
+                            {dept.classCount}
+                          </td>
+                          <td className="px-6 py-4 text-center bg-slate-50/50">
+                            <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
+                              {dept.inSchoolCount > 0 && (
+                                <span className="bg-emerald-50 text-emerald-700 px-1 rounded">
+                                  在校:{dept.inSchoolCount}
+                                </span>
+                              )}
+                              {dept.internshipCount > 0 && (
+                                <span className="bg-orange-50 text-orange-700 px-1 rounded">
+                                  实习:{dept.internshipCount}
                                 </span>
                               )}
                             </div>
-                          ) : (
-                            <span className="text-slate-400 italic text-xs">
-                              未指定
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-right text-slate-600 font-semibold">
-                          {major.avgClassSize} 人/班
-                        </td>
-                        <td className="px-6 py-4 text-right text-indigo-700 font-bold">
-                          {major.totalHours} 节
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="px-6 py-4 text-right font-extrabold text-indigo-600 bg-slate-50/50">
+                            {dept.studentCount}人
+                          </td>
+                          <td className="px-6 py-4 text-right text-slate-600 bg-slate-50/50">
+                            {dept.enrollmentTarget > 0 ? (
+                              <div className="flex flex-col items-end">
+                                <span className="font-semibold">
+                                  {dept.enrollmentTarget}人
+                                </span>
+                                {deptAchievementRate !== null && (
+                                  <span
+                                    className={`text-xs font-bold ${deptAchievementRate >= 100 ? "text-emerald-600" : "text-amber-600"}`}
+                                  >
+                                    达成率 {deptAchievementRate}%
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-xs">
+                                未指定
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right text-slate-600 font-semibold bg-slate-50/50">
+                            {dept.avgClassSize} 人/班
+                          </td>
+                          <td className="px-6 py-4 text-right text-indigo-700 font-bold bg-slate-50/50">
+                            {dept.totalHours} 节
+                          </td>
+                        </tr>
+                        {isExpanded && dept.majors.map(major => {
+                          const achievementRate =
+                            major.enrollmentTarget > 0
+                              ? Math.round(
+                                  (major.studentCount / major.enrollmentTarget) * 100,
+                                )
+                              : null;
+                          return (
+                            <tr
+                              key={major.id}
+                              className="hover:bg-slate-50 transition-colors bg-white/60"
+                            >
+                              <td className="px-6 py-4 pl-12 font-medium text-slate-700">
+                                {major.name}
+                              </td>
+                              <td className="px-6 py-4 text-slate-600">
+                              </td>
+                              <td className="px-6 py-4 text-center font-medium text-slate-600">
+                                {major.classCount}
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
+                                  {major.inSchoolCount > 0 && (
+                                    <span className="bg-emerald-50 text-emerald-700 px-1 rounded opacity-80">
+                                      在校:{major.inSchoolCount}
+                                    </span>
+                                  )}
+                                  {major.internshipCount > 0 && (
+                                    <span className="bg-orange-50 text-orange-700 px-1 rounded opacity-80">
+                                      实习:{major.internshipCount}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-right font-bold text-indigo-500">
+                                {major.studentCount}人
+                              </td>
+                              <td className="px-6 py-4 text-right text-slate-500">
+                                {major.enrollmentTarget > 0 ? (
+                                  <div className="flex flex-col items-end">
+                                    <span className="font-medium">
+                                      {major.enrollmentTarget}人
+                                    </span>
+                                    {achievementRate !== null && (
+                                      <span
+                                        className={`text-[10px] font-bold ${achievementRate >= 100 ? "text-emerald-500" : "text-amber-500"}`}
+                                      >
+                                        达成率 {achievementRate}%
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400 italic text-xs">
+                                    未指定
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 text-right text-slate-500 font-medium">
+                                {major.avgClassSize} 人/班
+                              </td>
+                              <td className="px-6 py-4 text-right text-indigo-600 font-semibold">
+                                {major.totalHours} 节
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
                     );
                   })}
-                  {majorDetailedList.length === 0 && (
+                  {departmentDetailedList.length === 0 && (
                     <tr>
                       <td
                         colSpan={8}
@@ -1678,6 +1800,67 @@ export function TeacherWorkload() {
                     </option>
                   ))}
                 </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Class Charts */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-[300px]">
+              <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <PieChart className="w-4 h-4 text-indigo-500" />
+                班级在校状态分布
+              </h3>
+              <div className="flex-1 min-h-0">
+                {classStatusData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPieChart>
+                      <Pie
+                        data={classStatusData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {classStatusData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => [`${value} 个班级`, '数量']} />
+                      <Legend verticalAlign="bottom" height={36} />
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">暂无数据</div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-[300px]">
+              <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <BarChart2 className="w-4 h-4 text-emerald-500" />
+                班级办学类型分布
+              </h3>
+              <div className="flex-1 min-h-0">
+                {classTypeData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={classTypeData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                      <XAxis type="number" hide />
+                      <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(value) => [`${value} 个班级`, '数量']} />
+                      <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20}>
+                        {classTypeData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS[(index + 1) % PIE_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">暂无数据</div>
+                )}
               </div>
             </div>
           </div>

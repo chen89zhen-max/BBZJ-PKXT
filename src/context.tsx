@@ -77,7 +77,7 @@ interface AppContextType {
 
   // Teachers
   addTeacher: (teacher: Omit<Teacher, "id">) => void;
-  addTeachers: (teachers: Omit<Teacher, "id">[]) => void;
+  addTeachers: (teachers: (Omit<Teacher, "id"> & { id?: string })[]) => void;
   updateTeacher: (teacher: Teacher) => void;
   updateTeachers: (teachers: Teacher[]) => void;
   deleteTeacher: (id: string) => void;
@@ -91,7 +91,7 @@ interface AppContextType {
     majorId?: string,
     code?: string,
   ) => void;
-  addSubjects: (subjects: Omit<Subject, "id">[]) => void;
+  addSubjects: (subjects: (Omit<Subject, "id"> & { id?: string })[]) => void;
   updateSubject: (subject: Subject) => void;
   updateSubjects: (subjects: Subject[]) => void;
   deleteSubject: (id: string) => void;
@@ -562,12 +562,13 @@ export const AppProvider: React.FC<{
       });
     }
   };
-  const addTeachers = (newTeachers: Omit<Teacher, "id">[]) => {
+  const addTeachers = (newTeachers: (Omit<Teacher, "id"> & { id?: string })[]) => {
     let updatedTeachers = [...state.teachers];
 
     newTeachers.forEach((newT) => {
-      // Find existing teacher by idCard (if provided) or by name
+      // Find existing teacher by id, idCard (if provided), or by name
       const existingIndex = updatedTeachers.findIndex((t) => {
+        if (newT.id && t.id === newT.id) return true;
         if (newT.idCard && t.idCard) {
           return t.idCard === newT.idCard;
         }
@@ -579,12 +580,12 @@ export const AppProvider: React.FC<{
         updatedTeachers[existingIndex] = {
           ...updatedTeachers[existingIndex],
           ...newT,
-          // Preserve the original ID
+          // Preserve the original ID if not explicitly overridden by newT.id (which it is above, but just to be safe)
           id: updatedTeachers[existingIndex].id,
         };
       } else {
         // Add new
-        updatedTeachers.push({ ...newT, id: uuidv4() });
+        updatedTeachers.push({ ...newT, id: newT.id || uuidv4() });
       }
     });
 
@@ -656,34 +657,30 @@ export const AppProvider: React.FC<{
       ],
     });
   };
-  const addSubjects = (newSubjects: Omit<Subject, "id">[]) => {
-    const existingSubjects = [...state.subjects];
-    const subjectsToAdd: Subject[] = [];
+  const addSubjects = (newSubjects: (Omit<Subject, "id"> & { id?: string })[]) => {
+    let updatedSubjects = [...state.subjects];
 
     newSubjects.forEach((s) => {
-      const exists =
-        existingSubjects.some(
-          (ex) =>
-            ex.name === s.name &&
-            ex.departmentId === s.departmentId &&
-            ex.majorId === s.majorId,
-        ) ||
-        subjectsToAdd.some(
-          (ad) =>
-            ad.name === s.name &&
-            ad.departmentId === s.departmentId &&
-            ad.majorId === s.majorId,
-        );
+      const existingIndex = updatedSubjects.findIndex((ex) => {
+        if (s.id && ex.id === s.id) return true;
+        if (s.code && ex.code === s.code) return true;
+        return ex.name === s.name &&
+          ex.departmentId === s.departmentId &&
+          ex.majorId === s.majorId;
+      });
 
-      if (!exists) {
-        subjectsToAdd.push({ ...s, id: uuidv4() });
+      if (existingIndex >= 0) {
+        updatedSubjects[existingIndex] = {
+          ...updatedSubjects[existingIndex],
+          ...s,
+          id: updatedSubjects[existingIndex].id
+        };
+      } else {
+        updatedSubjects.push({ ...s, id: s.id || uuidv4() });
       }
     });
 
-    broadcastState({
-      ...state,
-      subjects: [...state.subjects, ...subjectsToAdd],
-    });
+    broadcastState({ ...state, subjects: updatedSubjects });
   };
   const updateSubject = (subject: Subject) => {
     broadcastState({
