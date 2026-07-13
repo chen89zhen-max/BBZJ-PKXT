@@ -90,6 +90,7 @@ interface AppContextType {
     departmentId?: string,
     majorId?: string,
     code?: string,
+    subjectGroup?: string,
   ) => void;
   addSubjects: (subjects: (Omit<Subject, "id"> & { id?: string })[]) => void;
   updateSubject: (subject: Subject) => void;
@@ -159,6 +160,7 @@ interface AppContextType {
     term: number,
   ) => void;
 
+  updateApiConfig: (config: any) => void;
   connected: boolean;
 }
 
@@ -641,6 +643,7 @@ export const AppProvider: React.FC<{
     departmentId?: string,
     majorId?: string,
     code?: string,
+    subjectGroup?: string,
   ) => {
     const exists = state.subjects.some(
       (s) =>
@@ -653,7 +656,7 @@ export const AppProvider: React.FC<{
       ...state,
       subjects: [
         ...state.subjects,
-        { id: uuidv4(), name, type, departmentId, majorId, code },
+        { id: uuidv4(), name, type, departmentId, majorId, code, subjectGroup },
       ],
     });
   };
@@ -1159,6 +1162,8 @@ export const AppProvider: React.FC<{
     });
   };
 
+  const updateApiConfig = (config: any) => { broadcastState({ ...state, apiConfig: config }); };
+
   const deleteTalentProgram = (id: string) => {
     const currentPrograms = state.talentPrograms || [];
     broadcastState({
@@ -1334,6 +1339,7 @@ export const AppProvider: React.FC<{
         updateTalentProgram,
         deleteTalentProgram,
         importTalentProgramToSchedules,
+        updateApiConfig,
         connected,
       }}
     >

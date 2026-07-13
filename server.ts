@@ -405,6 +405,120 @@ async function startServer() {
     }
   });
 
+  app.post('/api/chat', async (req, res) => {
+    try {
+      const { prompt, dataContext, apiConfig } = req.body;
+      
+      let provider = state.apiConfig?.provider || 'deepseek';
+      let apiKey = state.apiConfig?.apiKey;
+      let baseUrl = state.apiConfig?.baseUrl;
+      let model = state.apiConfig?.model || 'deepseek-chat';
+      let thinkingLevel = state.apiConfig?.thinkingLevel || 'none';
+      
+      // Override with request-specific apiConfig if provided (from client state)
+      if (apiConfig) {
+        if (apiConfig.provider) provider = apiConfig.provider;
+        if (apiConfig.apiKey) apiKey = apiConfig.apiKey;
+        if (apiConfig.baseUrl) baseUrl = apiConfig.baseUrl;
+        if (apiConfig.model) model = apiConfig.model;
+        if (apiConfig.thinkingLevel) thinkingLevel = apiConfig.thinkingLevel;
+      }
+      
+      if (!apiKey) {
+        return res.status(500).json({ error: '请在设置中配置 API Key (Missing API Key)' });
+      }
+      
+      const fullPrompt = `你是一个教育数据研判专家。以下是学校的当前数据情况:\n${JSON.stringify(dataContext)}\n\n请简明扼要地回答用户的问题。问题:\n${prompt}`;
+      
+      // Use OpenAI compatible API format for all requests (DeepSeek & Custom)
+      const fetchUrl = (baseUrl && baseUrl.trim()) || 'https://api.deepseek.com/v1';
+      const actualUrl = fetchUrl.endsWith('/chat/completions') ? fetchUrl : `${fetchUrl.replace(/\/$/, '')}/chat/completions`;
+      
+      const reqBody: any = {
+          model: model || 'deepseek-chat',
+          messages: [
+              { role: 'system', content: '你是一个教育数据研判专家。' },
+              { role: 'user', content: fullPrompt }
+          ]
+      };
+      
+      // If thinking level is specified and not 'none', we inject it.
+      // E.g., some OpenAI-compatible endpoints might accept 'reasoning_effort'
+      if (thinkingLevel !== 'none') {
+          reqBody.reasoning_effort = thinkingLevel;
+      }
+      
+      const response = await fetch(actualUrl, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(reqBody)
+      });
+      
+      if (!response.ok) {
+          const errorData = await response.text();
+          throw new Error(`API request failed: ${response.status} ${errorData}`);
+      }
+      
+      const data = await response.json();
+      return res.json({ text: data.choices[0].message.content });
+      
+    } catch(e: any) {
+      console.error('Chat error:', e);
+      if (e?.status === 'INVALID_ARGUMENT' || e?.message?.includes('API key not valid')) {
+        return res.status(500).json({ error: 'API Key 无效，请检查 API 配置。' });
+      }
+      res.status(500).json({ error: e.message || 'Internal error' });
+    }
+  });
+
+    app.post('/api/chat/test', async (req, res) => {
+    try {
+      const { apiConfig } = req.body;
+      let apiKey = apiConfig?.apiKey;
+      let baseUrl = apiConfig?.baseUrl;
+      let model = apiConfig?.model || 'deepseek-chat';
+      
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Missing API Key' });
+      }
+      
+      const fetchUrl = (baseUrl && baseUrl.trim()) || 'https://api.deepseek.com/v1';
+      const actualUrl = fetchUrl.endsWith('/chat/completions') ? fetchUrl : `${fetchUrl.replace(/\/$/, '')}/chat/completions`;
+      
+      const reqBody: any = {
+          model: model || 'deepseek-chat',
+          messages: [
+              { role: 'user', content: 'hello' }
+          ],
+          max_tokens: 10
+      };
+      
+      const response = await fetch(actualUrl, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(reqBody)
+      });
+      
+      if (!response.ok) {
+          const errorData = await response.text();
+          throw new Error(`${response.status} ${errorData}`);
+      }
+      
+      await response.json();
+      return res.json({ success: true });
+      
+    } catch(e: any) {
+      console.error('Chat test error:', e);
+      res.status(500).json({ error: e.message || 'Internal error' });
+    }
+  });
+
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
   });

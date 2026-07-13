@@ -51,6 +51,7 @@ export interface Subject {
   id: string;
   name: string;
   code?: string;
+  subjectGroup?: string;
   type: SubjectType;
   departmentId?: string;
   majorId?: string;
@@ -122,6 +123,14 @@ export interface TalentProgram {
   courses: TalentProgramCourse[];
 }
 
+export interface ApiConfig {
+  provider: 'deepseek' | 'custom';
+  apiKey: string;
+  baseUrl?: string;
+  model?: string;
+  thinkingLevel?: 'none' | 'low' | 'medium' | 'high';
+}
+
 export interface AppState {
   departments: Department[];
   majors: Major[];
@@ -135,4 +144,5 @@ export interface AppState {
   users: User[];
   buildings: Building[];
   talentPrograms?: TalentProgram[]; // 人才培养方案库
+  apiConfig?: ApiConfig;
 }

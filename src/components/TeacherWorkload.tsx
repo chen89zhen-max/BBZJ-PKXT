@@ -18,7 +18,7 @@ import {
   Info,
   LayoutDashboard,
   ChevronRight,
-  PieChart,
+  PieChart, Sparkles,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -52,10 +52,12 @@ const calculateAge = (idCard?: string) => {
   return age;
 };
 
+import { DataCopilot } from "./DataCopilot";
+
 export function TeacherWorkload() {
   const { state } = useAppContext();
   const [activeTab, setActiveTab] = useState<
-    "overview" | "majors" | "classes" | "teachers"
+    "overview" | "majors" | "classes" | "teachers" | "copilot"
   >("overview");
 
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
@@ -973,6 +975,17 @@ export function TeacherWorkload() {
           >
             <Users className="w-4 h-4" />
             教师工作量统计
+          </button>
+          <button
+            onClick={() => setActiveTab("copilot")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              activeTab === "copilot"
+                ? "bg-white text-indigo-700 shadow-sm"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-indigo-500" />
+            AI智能研判
           </button>
         </div>
       </div>
@@ -2421,6 +2434,10 @@ export function TeacherWorkload() {
             </table>
           </div>
         </div>
+      )}
+      {/* 2. TAB CONTENT: 5. COPILOT */}
+      {activeTab === "copilot" && (
+        <DataCopilot />
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context';
-import { Plus, Building2, UserCircle, BookOpen, Tags, Trash2, Edit2, Save, X, GraduationCap, Users, Upload, Download, ArrowUp, ArrowDown, Search, GripVertical } from 'lucide-react';
+import { Plus, Building2, Bot, CheckCircle, UserCircle, BookOpen, Tags, Trash2, Edit2, Save, X, GraduationCap, Users, Upload, Download, ArrowUp, ArrowDown, Search, GripVertical } from 'lucide-react';
 import { Class, SubjectType, Teacher, Subject } from '../types';
 import * as xlsx from 'xlsx';
 import { SearchableTeacherSelect } from './SearchableTeacherSelect';
@@ -126,10 +126,11 @@ export function Settings() {
     addSubject, addSubjects, updateSubject, updateSubjects, deleteSubject, deleteSubjects, reorderSubject, updateSubjectsOrder,
     addClassCategory, deleteClassCategory,
     addGrade, deleteGrade,
-    clearSchedules
+    clearSchedules,
+    updateApiConfig
   } = useAppContext();
 
-  const [activeTab, setActiveTab] = useState<'org' | 'teacher' | 'subject' | 'dict'>('org');
+  const [activeTab, setActiveTab] = useState<'org' | 'teacher' | 'subject' | 'dict' | 'api'>('org');
 
   // Teacher Filter state
   const [teacherDeptFilter, setTeacherDeptFilter] = useState<string>('');
@@ -169,6 +170,7 @@ export function Settings() {
   
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectCode, setNewSubjectCode] = useState('');
+  const [newSubjectGroup, setNewSubjectGroup] = useState('');
   const [newSubjectType, setNewSubjectType] = useState<SubjectType>('中职公共基础课');
   const [newSubjectDepartmentId, setNewSubjectDepartmentId] = useState('');
   const [newSubjectMajorId, setNewSubjectMajorId] = useState('');
@@ -231,6 +233,57 @@ export function Settings() {
   const [showClearSchedulesPrompt, setShowClearSchedulesPrompt] = useState(false);
   const [showImportBackupPrompt, setShowImportBackupPrompt] = useState(false);
   const [pendingBackupData, setPendingBackupData] = useState<any>(null);
+
+  // API Config State
+  const [apiProvider, setApiProvider] = useState<'deepseek' | 'custom'>(state.apiConfig?.provider || 'deepseek');
+  const [apiKey, setApiKey] = useState<string>(state.apiConfig?.apiKey || '');
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>(state.apiConfig?.baseUrl || '');
+  const [apiModel, setApiModel] = useState<string>(state.apiConfig?.model || 'deepseek-chat');
+  const [apiThinkingLevel, setApiThinkingLevel] = useState<'none' | 'low' | 'medium' | 'high'>(state.apiConfig?.thinkingLevel || 'none');
+  const [apiSaveSuccess, setApiSaveSuccess] = useState(false);
+  const [apiTestStatus, setApiTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [apiTestMessage, setApiTestMessage] = useState('');
+
+  const testApiConnection = async () => {
+    setApiTestStatus('testing');
+    setApiTestMessage('正在测试连接...');
+    try {
+      const res = await fetch('/api/chat/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiConfig: {
+            provider: apiProvider,
+            apiKey: apiKey.trim(),
+            baseUrl: apiBaseUrl.trim() || undefined,
+            model: apiModel.trim() || undefined
+          }
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || '测试失败');
+      }
+      setApiTestStatus('success');
+      setApiTestMessage('连接成功，大模型联通正常！');
+    } catch (e: any) {
+      setApiTestStatus('error');
+      setApiTestMessage(`连接失败: ${e.message}`);
+    }
+  };
+
+  const saveApiConfig = () => {
+    updateApiConfig({
+      provider: apiProvider,
+      apiKey: apiKey.trim(),
+      baseUrl: apiBaseUrl.trim() || undefined,
+      model: apiModel.trim() || undefined,
+      thinkingLevel: apiThinkingLevel
+    });
+    setApiSaveSuccess(true);
+    setTimeout(() => setApiSaveSuccess(false), 3000);
+    testApiConnection();
+  };
 
   useEffect(() => {
     if (user?.role === 'USER' && user.departmentIds?.[0]) {
@@ -936,6 +989,12 @@ export function Settings() {
           className={`pb-3 px-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'dict' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           年级与类别字典
+        </button>
+        <button 
+          onClick={() => setActiveTab('api')}
+          className={`pb-3 px-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'api' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          AI 助手配置
         </button>
       </div>
 
@@ -1737,6 +1796,10 @@ export function Settings() {
                   <input type="text" value={subjectForm.code || ''} onChange={e => setSubjectForm({...subjectForm, code: e.target.value})} placeholder="例如：S001" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" />
                 </div>
                 <div>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">学科大类 (用于师资测算匹配)</label>
+                  <input type="text" value={subjectForm.subjectGroup || ''} onChange={e => setSubjectForm({...subjectForm, subjectGroup: e.target.value})} placeholder="例如：汽修、语文" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500" />
+                </div>
+                <div>
                   <label className="text-sm font-semibold text-slate-600 block mb-1">科目类别</label>
                   <select value={subjectForm.type || '中职公共基础课'} onChange={e => setSubjectForm({...subjectForm, type: e.target.value as SubjectType, departmentId: '', majorId: ''})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500">
                     <option value="中职公共基础课">中职公共基础课</option>
@@ -1777,10 +1840,12 @@ export function Settings() {
                     newSubjectType,
                     newSubjectType === '中职专业课' ? newSubjectDepartmentId : undefined,
                     newSubjectType === '中职专业课' ? newSubjectMajorId : undefined,
-                    newSubjectCode.trim()
+                    newSubjectCode.trim(),
+                    newSubjectGroup.trim()
                   ); 
                   setNewSubjectName(''); 
                   setNewSubjectCode('');
+                  setNewSubjectGroup('');
                   setNewSubjectDepartmentId('');
                   setNewSubjectMajorId('');
                 } 
@@ -1792,6 +1857,10 @@ export function Settings() {
                 <div>
                   <label className="text-sm font-semibold text-slate-600 block mb-1">科目编号</label>
                   <input type="text" value={newSubjectCode} onChange={(e) => setNewSubjectCode(e.target.value)} placeholder="例如：S001" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600 block mb-1">学科大类 (用于师资测算匹配)</label>
+                  <input type="text" value={newSubjectGroup} onChange={(e) => setNewSubjectGroup(e.target.value)} placeholder="例如：汽修、语文" className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm" />
                 </div>
                 <div>
                   <label className="text-sm font-semibold text-slate-600 block mb-1">科目类别</label>
@@ -2112,6 +2181,139 @@ export function Settings() {
               >
                 <Trash2 className="w-4 h-4" /> 一键清除全校班级
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'api' && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fade-in space-y-6">
+          <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-4">
+            <Bot className="w-5 h-5 text-indigo-600" />
+            <h3 className="text-lg font-bold text-slate-800">AI 数据研判助手配置</h3>
+          </div>
+          
+          <div className="max-w-xl space-y-4">
+            <div>
+              <label className="text-sm font-semibold text-slate-700 block mb-1">大模型服务商</label>
+              <select 
+                value={apiProvider} 
+                onChange={(e) => {
+                  const p = e.target.value as any;
+                  setApiProvider(p);
+                  if (p === 'deepseek') {
+                    setApiBaseUrl('https://api.deepseek.com/beta');
+                    setApiModel('deepseek-chat');
+                  } else if (p === 'custom') {
+                    setApiBaseUrl('');
+                    setApiModel('');
+                  }
+                }} 
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="deepseek">DeepSeek (官方或兼容接口)</option>
+                <option value="custom">其他国产大模型 (兼容 OpenAI 格式)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold text-slate-700 block mb-1">API Key</label>
+              <input 
+                type="password" 
+                value={apiKey} 
+                onChange={e => setApiKey(e.target.value)} 
+                placeholder="在此输入您的 API 密钥..." 
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500" 
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold text-slate-700 block mb-1">
+                Base URL 接口地址 <span className="text-slate-400 font-normal">(DeepSeek 默认可留空，其他国产大模型必填)</span>
+              </label>
+              <input 
+                type="text" 
+                value={apiBaseUrl} 
+                onChange={e => setApiBaseUrl(e.target.value)} 
+                placeholder="例如: https://api.deepseek.com/v1" 
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500" 
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold text-slate-700 block mb-1">模型名称</label>
+              {apiProvider === 'deepseek' ? (
+                <select
+                  value={apiModel}
+                  onChange={e => setApiModel(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="deepseek-chat">DeepSeek Chat (V3 / V4)</option>
+                  <option value="deepseek-reasoner">DeepSeek Reasoner (R1)</option>
+                </select>
+              ) : (
+                <input 
+                  type="text" 
+                  value={apiModel} 
+                  onChange={e => setApiModel(e.target.value)} 
+                  placeholder="例如: qwen-max, glm-4 等" 
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500" 
+                />
+              )}
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold text-slate-700 block mb-1">思考等级 (reasoning_effort 仅部分兼容模型支持)</label>
+              <select 
+                value={apiThinkingLevel} 
+                onChange={(e) => setApiThinkingLevel(e.target.value as any)} 
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="none">不启用思考 (默认)</option>
+                <option value="low">低等级 (Low) - 较快响应</option>
+                <option value="medium">中等级 (Medium) - 均衡</option>
+                <option value="high">高等级 (High) - 深度思考</option>
+              </select>
+            </div>
+
+            <div className="pt-4 flex items-center gap-4">
+              <button 
+                onClick={saveApiConfig}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors"
+              >
+                保存配置
+              </button>
+              {apiSaveSuccess && (
+                <span className="text-sm text-emerald-600 font-medium flex items-center gap-1 animate-fade-in">
+                  <CheckCircle className="w-4 h-4" />
+                  保存成功！
+                </span>
+              )}
+            </div>
+            
+            {apiTestStatus !== 'idle' && (
+              <div className={`p-3 mt-2 rounded-md text-sm flex items-start gap-2 animate-fade-in ${apiTestStatus === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : apiTestStatus === 'error' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
+                {apiTestStatus === 'testing' ? (
+                  <div className="w-4 h-4 rounded-full border-2 border-blue-600 border-t-transparent animate-spin mt-0.5 shrink-0" />
+                ) : apiTestStatus === 'success' ? (
+                  <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                ) : (
+                  <X className="w-4 h-4 mt-0.5 shrink-0" />
+                )}
+                <div className="break-words">
+                  {apiTestMessage}
+                </div>
+              </div>
+            )}
+            
+            <div className="bg-amber-50 p-3 rounded text-sm text-amber-800 border border-amber-200 mt-4">
+              <p className="font-semibold mb-1">提示：</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>已移除 Gemini，全面切换至 OpenAI 兼容协议，方便接入国内大模型。</li>
+                <li>DeepSeek 模型 (如 V3, V4, R1) 已内置选项。R1等推理模型通常会自动思考。若使用第三方 API 聚合商且支持 <code>reasoning_effort</code> 参数，可在此设置“思考等级”。</li>
+                <li>对于其他国产大模型（如通义千问、智谱清言等），请选择“其他国产大模型”，并填入相应的 Base URL 和模型名称。</li>
+                <li>API Key 仅保存在您的当前浏览器和本地系统备份中，不会上传到其他服务器。</li>
+              </ul>
             </div>
           </div>
         </div>

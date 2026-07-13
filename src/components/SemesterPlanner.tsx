@@ -613,13 +613,20 @@ export function SemesterPlanner() {
 
   // 4. Subject Forecast Calculations
   const subjectForecasts = useMemo(() => {
-    const subjectNames = Array.from(new Set(state.subjects.map((s) => s.name)));
+    const macroToSubjects = new Map();
+    state.subjects.forEach((s) => {
+      const macro = s.subjectGroup && s.subjectGroup.trim() ? s.subjectGroup.trim() : s.name;
+      if (!macroToSubjects.has(macro)) {
+        macroToSubjects.set(macro, []);
+      }
+      macroToSubjects.get(macro).push(s);
+    });
 
-    return subjectNames
-      .map((subName, idx) => {
-        const matchingSubjects = state.subjects.filter(
-          (s) => s.name === subName,
-        );
+    const macroNames = Array.from(macroToSubjects.keys());
+
+    return macroNames
+      .map((macroName, idx) => {
+        const matchingSubjects = macroToSubjects.get(macroName);
         const subIds = new Set(matchingSubjects.map((s) => s.id));
 
         const totalWeeklyHours = state.schedules
@@ -639,7 +646,7 @@ export function SemesterPlanner() {
           }, 0);
 
         const subTeachers = teachers.filter(
-          (t) => t.primarySubject === subName,
+          (t) => (t.primarySubject || '').trim() === macroName,
         );
         const teachersNeeded = totalWeeklyHours / teacherStandardHours;
         const actualCapacityEquivalent = subTeachers.reduce((sum, t) => sum + (t.defaultWeeklyHours !== undefined ? t.defaultWeeklyHours : teacherStandardHours) / teacherStandardHours, 0);
@@ -651,8 +658,8 @@ export function SemesterPlanner() {
 
         return {
           id: `sub-forecast-${idx}`,
-          code: sampleSubject?.code || "",
-          name: subName,
+          code: matchingSubjects.map(s => s.code).filter(Boolean).join(', ') || "",
+          name: macroName,
           type: sampleSubject?.type || "专业课",
           deptName: dept?.name || "基础课",
           totalWeeklyHours,

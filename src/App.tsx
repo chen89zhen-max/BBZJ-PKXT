@@ -70,7 +70,15 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
   const { state, connected } = useAppContext();
   const [activeTab, setActiveTab] = useState('dept-1'); // Default to first dept if exists
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) setIsSidebarOpen(true);
+      else setIsSidebarOpen(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const nonSchedulingDepts = ['公共基础学院', '行政干部', '职员与工勤'];
   // Ensure activeTab is valid and not a non-scheduling dept unless explicitly requested
@@ -134,10 +142,18 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Mobile Overlay */}
+        {isSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-slate-900/50 z-30 lg:hidden transition-opacity"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+        
         {/* Sidebar */}
         <aside
-          className={`bg-white border-r border-slate-200 flex flex-col h-full transition-all duration-300 ease-in-out shadow-sm ${
+          className={`bg-white border-r border-slate-200 flex flex-col h-full transition-all duration-300 ease-in-out shadow-sm absolute lg:relative z-40 ${
             isSidebarOpen ? 'w-64 opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-full overflow-hidden'
           }`}
         >
@@ -249,7 +265,7 @@ function MainContent({ user, onLogout }: { user: any, onLogout: () => void }) {
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-auto p-8 flex flex-col">
+        <main className="flex-1 overflow-auto p-4 md:p-8 flex flex-col w-full">
           <div className="max-w-full mx-auto flex-1">
             {activeTab === 'workload' ? (
               <TeacherWorkload />
