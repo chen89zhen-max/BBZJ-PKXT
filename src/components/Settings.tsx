@@ -205,6 +205,28 @@ export function Settings() {
     return '';
   };
 
+  // 自动修复由于历史导入原因导致的教师“所属产业部”字段存储为 UUID/ID 的脏数据
+  useEffect(() => {
+    if (state.teachers && state.departments && state.departments.length > 0) {
+      const needsFix = state.teachers.some(t => {
+        if (!t.department) return false;
+        return state.departments.some(d => d.id === t.department);
+      });
+
+      if (needsFix) {
+        const fixed = state.teachers.map(t => {
+          if (!t.department) return t;
+          const dept = state.departments.find(d => d.id === t.department);
+          if (dept) {
+            return { ...t, department: dept.name };
+          }
+          return t;
+        });
+        updateTeachers(fixed);
+      }
+    }
+  }, [state.teachers, state.departments, updateTeachers]);
+
   // Modal State
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -618,10 +640,10 @@ export function Settings() {
       
       const teachersToAdd = data.map((row: any) => {
         const deptName = row['所属产业部'] || row['department'] || '';
-        let departmentId = deptName;
+        let departmentName = deptName;
         if (deptName) {
-          const dept = state.departments.find(d => d.name === deptName);
-          if (dept) departmentId = dept.id;
+          const dept = state.departments.find(d => d.name === deptName || d.id === deptName);
+          if (dept) departmentName = dept.name;
         }
 
         return {
@@ -629,7 +651,7 @@ export function Settings() {
           name: row['姓名'] || row['name'] || '',
           gender: row['性别'] || row['gender'] || '',
           idCard: row['身份证号码'] || row['idCard'] || '',
-          department: departmentId,
+          department: departmentName,
           primarySubject: row['主要任教学科'] || row['primarySubject'] || '',
           employmentType: row['聘用性质'] || row['employmentType'] || undefined,
           positionType: row['岗位类型'] || row['positionType'] || undefined,
@@ -1354,22 +1376,12 @@ export function Settings() {
                   <label className="text-sm font-semibold text-slate-600 block mb-1">主要任教学科</label>
                   <select value={teacherForm.primarySubject || ''} onChange={e => setTeacherForm({...teacherForm, primarySubject: e.target.value})} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500">
                     <option value="">请选择任教学科</option>
-                    {Array.from(new Set([
-                      ...state.subjects.map(s => s.name),
-                      ...(state.teachers.map(t => t.primarySubject).filter(Boolean) as string[])
-                    ]))
-                    .sort((a, b) => {
-                      const subjectA = state.subjects.find(s => s.name === a);
-                      const subjectB = state.subjects.find(s => s.name === b);
-                      const codeA = subjectA?.code || '';
-                      const codeB = subjectB?.code || '';
-                      if (codeA !== codeB) {
-                        return codeA.localeCompare(codeB, 'zh-CN');
-                      }
-                      return (a as string).localeCompare(b as string, 'zh-CN');
-                    })
-                    .map(name => (
-                      <option key={name as string} value={name as string}>{name as string}</option>
+                    {Array.from(new Set(
+                      state.subjects.map(s => s.subjectGroup).filter(Boolean) as string[]
+                    ))
+                    .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+                    .map(group => (
+                      <option key={group} value={group}>{group}</option>
                     ))}
                   </select>
                 </div>
@@ -1492,22 +1504,12 @@ export function Settings() {
                   <label className="text-sm font-semibold text-slate-600 block mb-1">主要任教学科</label>
                   <select value={newTeacherPrimarySubject} onChange={(e) => setNewTeacherPrimarySubject(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm">
                     <option value="">请选择任教学科</option>
-                    {Array.from(new Set([
-                      ...state.subjects.map(s => s.name),
-                      ...(state.teachers.map(t => t.primarySubject).filter(Boolean) as string[])
-                    ]))
-                    .sort((a, b) => {
-                      const subjectA = state.subjects.find(s => s.name === a);
-                      const subjectB = state.subjects.find(s => s.name === b);
-                      const codeA = subjectA?.code || '';
-                      const codeB = subjectB?.code || '';
-                      if (codeA !== codeB) {
-                        return codeA.localeCompare(codeB, 'zh-CN');
-                      }
-                      return (a as string).localeCompare(b as string, 'zh-CN');
-                    })
-                    .map(name => (
-                      <option key={name as string} value={name as string}>{name as string}</option>
+                    {Array.from(new Set(
+                      state.subjects.map(s => s.subjectGroup).filter(Boolean) as string[]
+                    ))
+                    .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+                    .map(group => (
+                      <option key={group} value={group}>{group}</option>
                     ))}
                   </select>
                 </div>
@@ -1640,22 +1642,12 @@ export function Settings() {
                     <div className="flex items-center gap-1">
                       <select value={teacherBatchSubject} onChange={e => setTeacherBatchSubject(e.target.value)} className="border border-indigo-200 rounded px-1.5 py-1 bg-white w-28">
                         <option value="">统一学科</option>
-                        {Array.from(new Set([
-                          ...state.subjects.map(s => s.name),
-                          ...(state.teachers.map(t => t.primarySubject).filter(Boolean) as string[])
-                        ]))
-                        .sort((a, b) => {
-                          const subjectA = state.subjects.find(s => s.name === a);
-                          const subjectB = state.subjects.find(s => s.name === b);
-                          const codeA = subjectA?.code || '';
-                          const codeB = subjectB?.code || '';
-                          if (codeA !== codeB) {
-                            return codeA.localeCompare(codeB, 'zh-CN');
-                          }
-                          return (a as string).localeCompare(b as string, 'zh-CN');
-                        })
-                        .map(name => (
-                          <option key={name as string} value={name as string}>{name as string}</option>
+                        {Array.from(new Set(
+                          state.subjects.map(s => s.subjectGroup).filter(Boolean) as string[]
+                        ))
+                        .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+                        .map(group => (
+                          <option key={group} value={group}>{group}</option>
                         ))}
                       </select>
                       <button onClick={() => applyTeacherBatchSubject(teacherBatchSubject)} className="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700">应用</button>
